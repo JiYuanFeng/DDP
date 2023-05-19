@@ -29,12 +29,10 @@ We propose a simple, efficient, yet powerful framework for dense visual predicti
 
 ## Method
 ![](https://cdn.mathpix.com/snip/images/cWRqXI3wY6ILG4vwhBe3UrMUPQ5ZpNUs-G3_3iYt4io.original.fullsize.png)
----
+
 
 ## Usage
 please refer to each task folder for more details.
-
----
 
 ## Catalog
 - [ ] Depth Estimation checkpoints
@@ -46,8 +44,6 @@ please refer to each task folder for more details.
 - [ ] Segmentation checkpoints
 - [ ] Segmentation code
 - [x] Initialization
-
----
 
 ## Citation
 If this work is helpful for your research, please consider citing the following BibTeX entry.
