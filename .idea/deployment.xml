@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" autoUpload="Always" serverName="yfji@127.0.0.1:7002 password" remoteFilesAllowedToDisappearOnAutoupload="false">
+    <serverData>
+      <paths name="yfji@127.0.0.1:7002 password">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/yfji/project/DDP" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="yfji@127.0.0.1:7002 password (1)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="yfji@127.0.0.1:7002 password (2)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="yfji@127.0.0.1:7002 password (3)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="yfji@127.0.0.1:7002 password (4)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/yfji/project/DDP" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
+  </component>
+</project>
