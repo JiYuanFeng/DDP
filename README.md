@@ -4,7 +4,6 @@ The official implementation of the paper "[DDP: Diffusion Model for Dense Visual
 
 ### [Project Page](https://github.com/JiYuanFeng/DDP) | [Paper](https://arxiv.org/abs/2303.17559)
 
----
 
 This repository contains the official Pytorch implementation of training & evaluation code and the pretrained models for DDP, which contains:
 
