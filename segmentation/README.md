@@ -1,4 +1,4 @@
-# Apply DDP for Semantic Segmentation
+# Applying DDP for Semantic Segmentation
 
 Our segmentation code is developed on top of MMSegmentation v0.20.2.
 
