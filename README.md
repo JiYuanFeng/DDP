@@ -38,8 +38,8 @@ please refer to each task folder for more details.
 - [ ] BEVMap Segmentation code
 - [ ] Mask Conditioned ControlNet checkpoints
 - [ ] Mask Conditioned ControlNet code
-- [ ] Segmentation checkpoints
-- [ ] Segmentation code
+- [x] Segmentation checkpoints
+- [x] Segmentation code
 - [x] Initialization
 
 ## Citation
