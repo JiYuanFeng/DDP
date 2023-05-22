@@ -41,11 +41,11 @@ Preparing ADE20K/Cityscapes according to the [guidelines](https://github.com/ope
 | ConvNext-B |  160K   | 512x1024  | 82.78/83.49  |  100M  |    [config](configs/cityscapes/ddp_convnext_b_4x4_512x1024_160k_cityscapes.py)     | [ckpt](https://huggingface.co/datasets/yfji/DDP/blob/main/ddp_convnext_s_4x4_512x1024_160k_cityscapes.pth) \ [log](https://huggingface.co/datasets/yfji/DDP/blob/main/ddp_convnext_b_4x4_512x1024_160k_cityscapes.log) |
 | ConvNext-L |  160K   | 512x1024  | 83.21/83.92  |  209M  |    [config](configs/cityscapes/ddp_convnext_l_4x4_512x1024_160k_cityscapes.py)     | [ckpt](https://huggingface.co/datasets/yfji/DDP/blob/main/ddp_convnext_l_4x4_512x1024_160k_cityscapes.pth) \ [log](https://huggingface.co/datasets/yfji/DDP/blob/main/ddp_convnext_l_4x4_512x1024_160k_cityscapes.log) |
 
-[//]: # (|   Swin-T   |  160K   | 512x1024  | 81.24/82.46  |  39M   |   [config]&#40;./configs/ddp/ddp_swin_t_fpn_4x4_512x1024_160k_cityscapes.py&#41;   | [ckpt]&#40;&#41; \ [log]&#40;&#41; |)
+[//]: # (|   Swin-T   |  160K   | 512x1024  | 81.24/82.46  |  39M   |   [config]&#40;./configs/ddp/ddp_swin_t_4x4_512x1024_160k_cityscapes.py&#41;   | [ckpt]&#40;&#41; \ [log]&#40;&#41; |)
 
-[//]: # (|   Swin-S   |  160K   | 512x1024  | 82.41/83.21  |  61M   |   [config]&#40;./configs/ddp/ddp_swin_s_fpn_4x4_512x1024_160k_cityscapes.py&#41;   | [ckpt]&#40;&#41; \ [log]&#40;&#41; |)
+[//]: # (|   Swin-S   |  160K   | 512x1024  | 82.41/83.21  |  61M   |   [config]&#40;./configs/ddp/ddp_swin_s_4x4_512x1024_160k_cityscapes.py&#41;   | [ckpt]&#40;&#41; \ [log]&#40;&#41; |)
 
-[//]: # (|   Swin-B   |  160K   | 512x1024  | 82.54/83.42  |  99M   |   [config]&#40;./configs/ddp/ddp_swin_b_fpn_4x4_512x1024_160k_cityscapes.py&#41;   | [ckpt]&#40;&#41; \ [log]&#40;&#41; |)
+[//]: # (|   Swin-B   |  160K   | 512x1024  | 82.54/83.42  |  99M   |   [config]&#40;./configs/ddp/ddp_swin_b_4x4_512x1024_160k_cityscapes.py&#41;   | [ckpt]&#40;&#41; \ [log]&#40;&#41; |)
 
 **ADE20k val (step 3)**
 
@@ -64,7 +64,7 @@ bash tools/dist_train.sh ${CONFIG_FILE} ${GPU_NUM}
 ```
 For example, To train DDP-ConvNext-L on cityscapes with 4 gpus run:
 ```
-bash tools/dist_train.sh configs/cityscapes/ddp_convnext_l_fpn_4x4_512x1024_160k_cityscapes.py 4
+bash tools/dist_train.sh configs/cityscapes/ddp_convnext_l_4x4_512x1024_160k_cityscapes.py 4
 ```
 
 ## Evaluation
@@ -81,7 +81,7 @@ bash tools/dist_test.sh ${CONFIG_FILE} ${CHECKPOINT_FILE} ${GPU_NUM} --eval mIoU
 
 For example, To evaluate DDP-ConvNext-T on cityscapes val on a single node with 4 gpus run:
 ```
-bash tools/dist_test.sh configs/cityscapes/ddp_convnext_t_fpn_4x4_512x1024_160k_cityscapes.py ckpts/ddp_convnext_t_fpn_4x4_512x1024_160k_cityscapes.pth 4 --eval mIoU
+bash tools/dist_test.sh configs/cityscapes/ddp_convnext_t_4x4_512x1024_160k_cityscapes.py ckpts/ddp_convnext_t_4x4_512x1024_160k_cityscapes.pth 4 --eval mIoU
 ```
 This should give the below results. Note that the results may vary a little on different machines due to the randomness of the diffusion modeling.
 ```
@@ -102,7 +102,7 @@ python image_demo.py ${IMAGE_FILE} ${CONFIG_FILE} ${CHECKPOINT_FILE} ${PRED_FILE
 ```
 For example, the result will be saved in `resources/demo_pred.png` by running:
 ```
-python image_demo.py resources/demo.png configs/ddp/ddp_convnext_t_fpn_4x4_512x1024_160k_cityscapes.py ckpts/ddp_convnext_t_fpn_4x4_512x1024_160k_cityscapes.pth resources/demo_pred.png --device cuda:0 --palette cityscapes
+python image_demo.py resources/demo.png configs/ddp/ddp_convnext_t_4x4_512x1024_160k_cityscapes.py ckpts/ddp_convnext_t_4x4_512x1024_160k_cityscapes.pth resources/demo_pred.png --device cuda:0 --palette cityscapes
 ```
 
 
