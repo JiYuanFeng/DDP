@@ -98,7 +98,7 @@ Summary:
 
 To inference a single image like this:
 ```
-python image_demo.py ${CONFIG_FILE} ${CHECKPOINT_FILE} ${IMAGE_FILE} --device cuda:0 --palette ${PALETTE_FILE} --show
+python image_demo.py ${IMAGE_FILE} ${CONFIG_FILE} ${CHECKPOINT_FILE} ${PRED_FILE} --device cuda:0 --palette ${PALETTE_FILE}
 ```
 For example, the result will be saved in `resources/demo_pred.png` by running:
 ```
