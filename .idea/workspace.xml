@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="c64281d8-b9a6-448c-9d14-9021e448ec41" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/segmentation/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/segmentation/README.md" afterDir="false" />
-    </list>
+    <list default="true" id="c64281d8-b9a6-448c-9d14-9021e448ec41" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -47,16 +44,23 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "WebServerToolWindowFactoryState": "true",
-    "nodejs_package_manager_path": "npm"
-  }
-}]]></component>
+  <component name="PropertiesComponent">
+    <property name="WebServerToolWindowFactoryState" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/segmentation/configs/ddp" />
+    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+  </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="F:\project\DDP\segmentation\configs\ddp" />
+      <recent name="F:\project\DDP\segmentation\debug_ckpt" />
+      <recent name="F:\project\DDP\segmentation\resources" />
+      <recent name="F:\project\DDP\segmentation" />
+      <recent name="F:\project\DDP\segmentation\configs" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="F:\project\DDP\segmentation\configs\cityscapes" />
+      <recent name="F:\project\DDP\segmentation\configs" />
+      <recent name="F:\project\DDP\segmentation\debug_ckpt" />
       <recent name="F:\project\DDP\segmentation" />
     </key>
   </component>
@@ -99,6 +103,7 @@
       <updated>1684400668826</updated>
       <workItem from="1684400671143" duration="8002000" />
       <workItem from="1684652140569" duration="918000" />
+      <workItem from="1684674597864" duration="23630000" />
     </task>
     <servers />
   </component>
@@ -106,6 +111,6 @@
     <option name="version" value="3" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/DDP$debug.coverage" NAME="debug Coverage Results" MODIFIED="1684420211760" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/DDP$debug.coverage" NAME="debug Coverage Results" MODIFIED="1684676741585" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
