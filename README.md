@@ -25,7 +25,8 @@ We propose a simple, efficient, yet powerful framework for dense visual predicti
 
 
 ## Method
-![](https://cdn.mathpix.com/snip/images/cWRqXI3wY6ILG4vwhBe3UrMUPQ5ZpNUs-G3_3iYt4io.original.fullsize.png)
+<img width="1680" alt="image" src="https://github.com/JiYuanFeng/DDP/assets/23737120/e45b0241-79c4-4cad-886f-ec1250b61412">
+
 
 
 ## Usage
