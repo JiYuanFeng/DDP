@@ -4,8 +4,8 @@ _base_ = [
     '../_base_/schedules/schedule_160k.py'
 ]
 custom_imports = dict(imports='mmcls.models', allow_failed_imports=False)
-checkpoint_file = 'https://download.openmmlab.com/mmclassification/v0/convnext' \
-                  '/downstream/convnext-tiny_3rdparty_32xb128-noema_in1k_20220301-795e9634.pth'  # noqa
+checkpoint_file = 'https://download.openmmlab.com/mmclassification/v0/convnext/' \
+                  'downstream/convnext-tiny_3rdparty_32xb128-noema_in1k_20220301-795e9634.pth'  # noqa
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 backbone_norm_cfg = dict(type='LN', requires_grad=True)
@@ -23,8 +23,7 @@ model = dict(
         gap_before_final_norm=False,
         init_cfg=dict(
             type='Pretrained', checkpoint=checkpoint_file,
-            prefix='backbone.')
-    ),
+            prefix='backbone.')),
     neck=[
         dict(
             type='FPN',
@@ -88,7 +87,7 @@ model = dict(
                     ffn_drop=0.,
                     act_cfg=dict(type='GELU'),
                 ),
-            operation_order=('self_attn', 'norm', 'ffn', 'norm'))
+                operation_order=('self_attn', 'norm', 'ffn', 'norm'))
         ),
         positional_encoding=dict(
             type='SinePositionalEncoding',
@@ -104,12 +103,10 @@ model = dict(
     # model training and testing settings
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
-
 data = dict(
     samples_per_gpu=4,
     workers_per_gpu=4,
 )
-
 optimizer = dict(
     _delete_=True,
     type='AdamW',
@@ -122,7 +119,6 @@ optimizer = dict(
             'norm': dict(decay_mult=0.),
             'head': dict(lr_mult=1.)
         }))
-
 lr_config = dict(
     _delete_=True,
     policy='poly',
@@ -132,6 +128,5 @@ lr_config = dict(
     power=1.0,
     min_lr=0.0,
     by_epoch=False)
-
 find_unused_parameters = True
 evaluation = dict(interval=16000, metric='mIoU', save_best='mIoU')
