@@ -17,11 +17,11 @@ model = dict(
     backbone=dict(
         type='SwinTransformer',
         init_cfg=dict(type='Pretrained', checkpoint=checkpoint_file),
-        pretrain_img_size=224,
+        pretrain_img_size=384,
         in_channels=3,
         embed_dims=128,
         patch_size=4,
-        window_size=7,
+        window_size=12,
         mlp_ratio=4,
         depths=[2, 2, 18, 2],
         num_heads=[4, 8, 16, 32],
