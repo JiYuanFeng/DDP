@@ -67,6 +67,7 @@ class DDP(EncoderDecoder):
                  sample_range=(0, 0.999),
                  noise_schedule='cosine',
                  diffusion='ddim',
+                 accumulation=False,
                  **kwargs):
         super(DDP, self).__init__(**kwargs)
 
@@ -77,6 +78,7 @@ class DDP(EncoderDecoder):
         self.time_difference = time_difference
         self.sample_range = sample_range
         self.use_gt = False
+        self.accumulation = accumulation
         self.embedding_table = nn.Embedding(self.num_classes + 1, self.decode_head.in_channels[0])
 
         print(f" timesteps: {timesteps},"
@@ -220,6 +222,7 @@ class DDP(EncoderDecoder):
         time_pairs = self._get_sampling_timesteps(b, device=device)
         x = repeat(x, 'b c h w -> (r b) c h w', r=self.randsteps)
         mask_t = torch.randn((self.randsteps, self.decode_head.in_channels[0], h, w), device=device)
+        outs = list()
         for idx, (times_now, times_next) in enumerate(time_pairs):
             feat = torch.cat([x, mask_t], dim=1)
             feat = self.transform(feat)
@@ -238,7 +241,11 @@ class DDP(EncoderDecoder):
             mask_pred = (torch.sigmoid(mask_pred) * 2 - 1) * self.bit_scale
             pred_noise = (mask_t - alpha * mask_pred) / sigma.clamp(min=1e-8)
             mask_t = mask_pred * alpha_next + pred_noise * sigma_next
-
+            
+            if self.accumulation:
+                outs.append(mask_logit.softmax(1))
+        if self.accumulation:
+            mask_logit = torch.cat(outs, dim=0)
         logit = mask_logit.mean(dim=0, keepdim=True)
         return logit
 

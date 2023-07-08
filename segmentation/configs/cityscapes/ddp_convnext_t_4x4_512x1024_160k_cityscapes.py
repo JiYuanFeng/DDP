@@ -8,7 +8,6 @@ checkpoint_file = 'https://download.openmmlab.com/mmclassification/v0/convnext/'
                   'downstream/convnext-tiny_3rdparty_32xb128-noema_in1k_20220301-795e9634.pth'  # noqa
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
-backbone_norm_cfg = dict(type='LN', requires_grad=True)
 model = dict(
     type='DDP',
     timesteps=3,
@@ -38,8 +37,7 @@ model = dict(
             out_channels=256,
             kernel_size=1,
             norm_cfg=dict(type='GN', num_groups=32),
-            act_cfg=None,
-        )
+            act_cfg=None)
     ],
     auxiliary_head=dict(
         type='FCNHead',
@@ -55,8 +53,7 @@ model = dict(
         loss_decode=dict(
             type='CrossEntropyLoss',
             use_sigmoid=False,
-            loss_weight=0.4,
-        )),
+            loss_weight=0.4)),
     decode_head=dict(
         type='DeformableHeadWithTime',
         in_channels=[256],
@@ -78,15 +75,13 @@ model = dict(
                     embed_dims=256,
                     num_levels=1,
                     num_heads=8,
-                    dropout=0.0
-                ),
+                    dropout=0.),
                 ffn_cfgs=dict(
                     type='FFN',
                     embed_dims=256,
                     feedforward_channels=1024,
                     ffn_drop=0.,
-                    act_cfg=dict(type='GELU'),
-                ),
+                    act_cfg=dict(type='GELU')),
                 operation_order=('self_attn', 'norm', 'ffn', 'norm'))
         ),
         positional_encoding=dict(
@@ -97,9 +92,7 @@ model = dict(
         loss_decode=dict(
             type='CrossEntropyLoss',
             use_sigmoid=False,
-            loss_weight=1.0,
-        )
-    ),
+            loss_weight=1.0)),
     # model training and testing settings
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
