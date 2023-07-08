@@ -45,7 +45,7 @@ Preparing ADE20K/Cityscapes according to the [guidelines](https://github.com/ope
 [//]: # (|   Swin-S   |  160K   | 512x1024  | 82.41/83.21  |  61M   |   [config]&#40;./configs/ddp/ddp_swin_s_4x4_512x1024_160k_cityscapes.py&#41;   | [ckpt]&#40;&#41; \ [log]&#40;&#41; |)
 [//]: # (|   Swin-B   |  160K   | 512x1024  | 82.54/83.42  |  99M   |   [config]&#40;./configs/ddp/ddp_swin_b_4x4_512x1024_160k_cityscapes.py&#41;   | [ckpt]&#40;&#41; \ [log]&#40;&#41; |)
 
-**Cityscapes val (with self-aligned denoising)**
+**Cityscapes val (with self-aligned denoising, single scale)**
 
 |  Backbone  | Lr schd | Crop Size | mIoU (step 1/3/10)    | #Param |                                   Config                                          |                                                   Download                                                     |
 |:----------:|:-------:|:---------:|:---------------------:|:------:|:---------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------------------------:|
