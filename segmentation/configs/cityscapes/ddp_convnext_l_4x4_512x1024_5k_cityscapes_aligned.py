@@ -1,16 +1,16 @@
 _base_ = [
     '../_base_/datasets/cityscapes.py',
     '../_base_/default_runtime.py',
-    '../_base_/schedules/schedule_160k.py'
+    '../_base_/schedules/schedule_5k.py'
 ]
 custom_imports = dict(imports='mmcls.models', allow_failed_imports=False)
-checkpoint_file = 'https://download.openmmlab.com/mmclassification/v0/convnext/' \
-                  'downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'  # noqa
+load_from = 'https://huggingface.co/yfji/DDP-Weight/raw/main/' \
+            'ddp_convnext_l_4x4_512x1024_160k_cityscapes.pth'  # noqa
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
-    type='DDP',
-    timesteps=3,
+    type='SelfAlignedDDP',
+    timesteps=10,
     bit_scale=0.01,
     pretrained=None,
     backbone=dict(
@@ -20,9 +20,7 @@ model = dict(
         drop_path_rate=0.4,
         layer_scale_init_value=1.0,
         gap_before_final_norm=False,
-        init_cfg=dict(
-            type='Pretrained', checkpoint=checkpoint_file,
-            prefix='backbone.')),
+        init_cfg=None),
     neck=[
         dict(
             type='FPN',
@@ -103,7 +101,7 @@ data = dict(
 optimizer = dict(
     _delete_=True,
     type='AdamW',
-    lr=0.00006,
+    lr=0.000006,
     betas=(0.9, 0.999),
     weight_decay=0.01,
     paramwise_cfg=dict(
@@ -122,4 +120,4 @@ lr_config = dict(
     min_lr=0.0,
     by_epoch=False)
 find_unused_parameters = True
-evaluation = dict(interval=16000, metric='mIoU', save_best='mIoU')
+evaluation = dict(interval=500, metric='mIoU', save_best='mIoU')

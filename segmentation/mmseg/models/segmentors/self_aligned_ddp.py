@@ -47,7 +47,7 @@ class LearnedSinusoidalPosEmb(nn.Module):
 
 
 @SEGMENTORS.register_module()
-class DDP(EncoderDecoder):
+class SelfAlignedDDP(EncoderDecoder):
     """Encoder Decoder segmentors.
     EncoderDecoder typically consists of backbone, decode_head, auxiliary_head.
     Note that auxiliary_head is only used for deep supervision during training,
@@ -65,7 +65,7 @@ class DDP(EncoderDecoder):
                  diffusion='ddim',
                  accumulation=False,
                  **kwargs):
-        super(DDP, self).__init__(**kwargs)
+        super(SelfAlignedDDP, self).__init__(**kwargs)
 
         self.bit_scale = bit_scale
         self.timesteps = timesteps
@@ -146,26 +146,33 @@ class DDP(EncoderDecoder):
         # backbone & neck
         x = self.extract_feat(img)[0]  # bs, 256, h/4, w/4
         batch, c, h, w, device, = *x.shape, x.device
-        gt_down = resize(gt_semantic_seg.float(), size=(h, w), mode="nearest")
-        gt_down = gt_down.to(gt_semantic_seg.dtype)
-        gt_down[gt_down == 255] = self.num_classes
 
-        gt_down = self.embedding_table(gt_down).squeeze(1).permute(0, 3, 1, 2)
-        gt_down = (torch.sigmoid(gt_down) * 2 - 1) * self.bit_scale
+        # self-aligned denoising
+        with torch.no_grad():
+            times = torch.ones((batch,), device=device).float()
+            noise_level = self.log_snr(times)
+            input_times = self.time_mlp(noise_level)
+            # random noise
+            noise = torch.randn_like(x)
+            # conditional input
+            feat = torch.cat([x, noise], dim=1)
+            feat = self.transform(feat)
+            logits = self._decode_head_forward_test([feat], input_times, img_metas)
+            preds = torch.argmax(logits, dim=1)
+            
+        preds = self.embedding_table(preds.detach()).squeeze(1).permute(0, 3, 1, 2)
+        preds = (torch.sigmoid(preds) * 2 - 1) * self.bit_scale
 
         # sample time
         times = torch.zeros((batch,), device=device).float().uniform_(self.sample_range[0],
                                                                       self.sample_range[1])  # [bs]
-
-        # random noise
-        noise = torch.randn_like(gt_down)
         noise_level = self.log_snr(times)
         padded_noise_level = self.right_pad_dims_to(img, noise_level)
         alpha, sigma = log_snr_to_alpha_sigma(padded_noise_level)
-        noised_gt = alpha * gt_down + sigma * noise
+        noised_preds = alpha * preds + sigma * noise
 
         # conditional input
-        feat = torch.cat([x, noised_gt], dim=1)
+        feat = torch.cat([x, noised_preds], dim=1)
         feat = self.transform(feat)
 
         losses = dict()

@@ -1,32 +1,45 @@
 _base_ = [
-    '../_base_/datasets/cityscapes.py',
+    '../_base_/datasets/ade20k.py',
     '../_base_/default_runtime.py',
     '../_base_/schedules/schedule_160k.py'
 ]
-custom_imports = dict(imports='mmcls.models', allow_failed_imports=False)
-checkpoint_file = 'https://download.openmmlab.com/mmclassification/v0/convnext/' \
-                  'downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'  # noqa
+checkpoint_file = 'https://download.openmmlab.com/mmsegmentation/v0.5/pretrain/swin/' \
+                  'swin_base_patch4_window7_224_20220317-e9b98025.pth'  # noqa
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
+backbone_norm_cfg = dict(type='LN', requires_grad=True)
 model = dict(
     type='DDP',
     timesteps=3,
     bit_scale=0.01,
+    accumulation=True,
     pretrained=None,
     backbone=dict(
-        type='mmcls.ConvNeXt',
-        arch='large',
-        out_indices=[0, 1, 2, 3],
-        drop_path_rate=0.4,
-        layer_scale_init_value=1.0,
-        gap_before_final_norm=False,
-        init_cfg=dict(
-            type='Pretrained', checkpoint=checkpoint_file,
-            prefix='backbone.')),
+        type='SwinTransformer',
+        init_cfg=dict(type='Pretrained', checkpoint=checkpoint_file),
+        pretrain_img_size=384,
+        in_channels=3,
+        embed_dims=128,
+        patch_size=4,
+        window_size=12,
+        mlp_ratio=4,
+        depths=[2, 2, 18, 2],
+        num_heads=[4, 8, 16, 32],
+        strides=(4, 2, 2, 2),
+        out_indices=(0, 1, 2, 3),
+        qkv_bias=True,
+        qk_scale=None,
+        patch_norm=True,
+        drop_rate=0.,
+        attn_drop_rate=0.,
+        drop_path_rate=0.3,
+        use_abs_pos_embed=False,
+        act_cfg=dict(type='GELU'),
+        norm_cfg=backbone_norm_cfg),
     neck=[
         dict(
             type='FPN',
-            in_channels=[192, 384, 768, 1536],
+            in_channels=[128, 256, 512, 1024],
             out_channels=256,
             act_cfg=None,
             norm_cfg=dict(type='GN', num_groups=32),
@@ -47,7 +60,7 @@ model = dict(
         num_convs=1,
         concat_input=False,
         dropout_ratio=0.1,
-        num_classes=19,
+        num_classes=150,
         norm_cfg=norm_cfg,
         align_corners=False,
         loss_decode=dict(
@@ -60,7 +73,7 @@ model = dict(
         channels=256,
         in_index=[0],
         dropout_ratio=0.,
-        num_classes=19,
+        num_classes=150,
         norm_cfg=norm_cfg,
         align_corners=False,
         num_feature_levels=1,
@@ -97,8 +110,8 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
 data = dict(
-    samples_per_gpu=4,
-    workers_per_gpu=4,
+    samples_per_gpu=2,
+    workers_per_gpu=2,
 )
 optimizer = dict(
     _delete_=True,
@@ -121,5 +134,5 @@ lr_config = dict(
     power=1.0,
     min_lr=0.0,
     by_epoch=False)
-find_unused_parameters = True
 evaluation = dict(interval=16000, metric='mIoU', save_best='mIoU')
+optimizer_config = dict(grad_clip=dict(max_norm=0.1, norm_type=2))

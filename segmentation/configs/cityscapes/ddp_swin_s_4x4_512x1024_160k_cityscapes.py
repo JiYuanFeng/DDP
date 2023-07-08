@@ -3,13 +3,14 @@ _base_ = [
     '../_base_/default_runtime.py',
     '../_base_/schedules/schedule_160k.py'
 ]
-checkpoint_file = 'https://download.openmmlab.com/mmsegmentation/v0.5/pretrain/swin' \
-                  '/swin_small_patch4_window7_224_20220317-7ba6d6dd.pth '
+checkpoint_file = 'https://download.openmmlab.com/mmsegmentation/v0.5/pretrain/swin/' \
+                  'swin_small_patch4_window7_224_20220317-7ba6d6dd.pth'  # noqa
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 backbone_norm_cfg = dict(type='LN', requires_grad=True)
 model = dict(
     type='DDP',
+    timesteps=3,
     bit_scale=0.01,
     pretrained=None,
     backbone=dict(
@@ -48,8 +49,7 @@ model = dict(
             out_channels=256,
             kernel_size=1,
             norm_cfg=dict(type='GN', num_groups=32),
-            act_cfg=None,
-        )
+            act_cfg=None)
     ],
     auxiliary_head=dict(
         type='FCNHead',
@@ -65,8 +65,7 @@ model = dict(
         loss_decode=dict(
             type='CrossEntropyLoss',
             use_sigmoid=False,
-            loss_weight=0.4,
-        )),
+            loss_weight=0.4)),
     decode_head=dict(
         type='DeformableHeadWithTime',
         in_channels=[256],
@@ -88,16 +87,14 @@ model = dict(
                     embed_dims=256,
                     num_levels=1,
                     num_heads=8,
-                    dropout=0.0
-                ),
+                    dropout=0.),
                 ffn_cfgs=dict(
                     type='FFN',
                     embed_dims=256,
                     feedforward_channels=1024,
                     ffn_drop=0.,
-                    act_cfg=dict(type='GELU'),
-                ),
-            operation_order=('self_attn', 'norm', 'ffn', 'norm'))
+                    act_cfg=dict(type='GELU')),
+                operation_order=('self_attn', 'norm', 'ffn', 'norm'))
         ),
         positional_encoding=dict(
             type='SinePositionalEncoding',
@@ -107,20 +104,14 @@ model = dict(
         loss_decode=dict(
             type='CrossEntropyLoss',
             use_sigmoid=False,
-            loss_weight=1.0,
-        )
-    ),
+            loss_weight=1.0)),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='whole')
-    # test_cfg=dict(mode='slide', crop_size=(1024, 1024), stride=(768, 768))
-)
-
+    test_cfg=dict(mode='whole'))
 data = dict(
     samples_per_gpu=4,
     workers_per_gpu=4,
 )
-
 optimizer = dict(
     _delete_=True,
     type='AdamW',
@@ -133,7 +124,6 @@ optimizer = dict(
             'norm': dict(decay_mult=0.),
             'head': dict(lr_mult=1.)
         }))
-
 lr_config = dict(
     _delete_=True,
     policy='poly',
@@ -143,6 +133,5 @@ lr_config = dict(
     power=1.0,
     min_lr=0.0,
     by_epoch=False)
-
 find_unused_parameters = True
 evaluation = dict(interval=16000, metric='mIoU', save_best='mIoU')
