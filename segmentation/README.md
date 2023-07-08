@@ -64,7 +64,7 @@ Preparing ADE20K/Cityscapes according to the [guidelines](https://github.com/ope
 
 ## Training
 
-multi-gpu training
+Multi-gpu training
 ```
 bash tools/dist_train.sh ${CONFIG_FILE} ${GPU_NUM}
 ```
@@ -72,19 +72,19 @@ For example, To train DDP-ConvNext-L on cityscapes with 4 gpus run:
 ```
 bash tools/dist_train.sh configs/cityscapes/ddp_convnext_l_4x4_512x1024_160k_cityscapes.py 4
 ```
-self-aligned denoising
+Self-aligned denoising
 ```
 bash tools/dist_train.sh configs/cityscapes/ddp_convnext_t_4x4_512x1024_5k_cityscapes_aligned.py 4
 ```
 
 ## Evaluation
 
-single-gpu testing
+Single-gpu testing
 ```
 python tools/test.py ${CONFIG_FILE} ${CHECKPOINT_FILE} --eval mIoU
 ```
 
-multi-gpu testing
+Multi-gpu testing
 ```
 bash tools/dist_test.sh ${CONFIG_FILE} ${CHECKPOINT_FILE} ${GPU_NUM} --eval mIoU
 ```
