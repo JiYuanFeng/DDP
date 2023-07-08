@@ -12,6 +12,7 @@ model = dict(
     type='DDP',
     timesteps=3,
     bit_scale=0.01,
+    accumulation=True,
     pretrained=None,
     backbone=dict(
         type='SwinTransformer',
