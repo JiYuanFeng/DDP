@@ -72,6 +72,10 @@ For example, To train DDP-ConvNext-L on cityscapes with 4 gpus run:
 ```
 bash tools/dist_train.sh configs/cityscapes/ddp_convnext_l_4x4_512x1024_160k_cityscapes.py 4
 ```
+self-aligned denoising
+```
+bash tools/dist_train.sh configs/cityscapes/ddp_convnext_t_4x4_512x1024_5k_cityscapes_aligned.py 4
+```
 
 ## Evaluation
 
