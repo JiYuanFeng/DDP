@@ -47,10 +47,10 @@ Preparing ADE20K/Cityscapes according to the [guidelines](https://github.com/ope
 
 **Cityscapes val (with self-aligned denoising)**
 
-|  Backbone  | Lr schd | Crop Size | mIoU (Step 1/3/10)    | #Param |                                   Config                                          |                                                                                                        Download                                                                                                               |
-|:----------:|:-------:|:---------:|:---------------------:|:------:|:---------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
-| ConvNext-T |  5K     | 512x1024  |        ?/?/?          |  40M   | [config](configs/cityscapes/ddp_convnext_t_4x4_512x1024_5k_cityscapes_aligned.py) | [ckpt](https://huggingface.co/yfji/DDP-Weight/raw/main/ddp_convnext_t_4x4_512x1024_5k_cityscapes_aligned.pth) \| [log](https://huggingface.co/yfji/DDP-Weight/raw/main/ddp_convnext_t_4x4_512x1024_5k_cityscapes_aligned.log) |
-| ConvNext-L |  5K     | 512x1024  |        ?/?/?          |  209M  | [config](configs/cityscapes/ddp_convnext_l_4x4_512x1024_5k_cityscapes_aligned.py) | [ckpt](https://huggingface.co/yfji/DDP-Weight/raw/main/ddp_convnext_l_4x4_512x1024_5k_cityscapes_aligned.pth) \| [log](https://huggingface.co/yfji/DDP-Weight/raw/main/ddp_convnext_l_4x4_512x1024_5k_cityscapes_aligned.log) |
+|  Backbone  | Lr schd | Crop Size | mIoU (Step 1/3/10)    | #Param |                                   Config                                          |                                                   Download                                                     |
+|:----------:|:-------:|:---------:|:---------------------:|:------:|:---------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------------------------:|
+| ConvNext-T |  5K     | 512x1024  |    82.3/82.6/82.6     |  40M   | [config](configs/cityscapes/ddp_convnext_t_4x4_512x1024_5k_cityscapes_aligned.py) | [ckpt](https://huggingface.co/yfji/DDP-Weight/raw/main/ddp_convnext_t_4x4_512x1024_5k_cityscapes_aligned.pth)  |
+| ConvNext-L |  5K     | 512x1024  |    83.0/83.2/?        |  209M  | [config](configs/cityscapes/ddp_convnext_l_4x4_512x1024_5k_cityscapes_aligned.py) | [ckpt](https://huggingface.co/yfji/DDP-Weight/raw/main/ddp_convnext_l_4x4_512x1024_5k_cityscapes_aligned.pth)  |
 
 
 **ADE20k val (step 3)**
