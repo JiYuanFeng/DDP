@@ -26,7 +26,7 @@ cd controlnet/annotator/ddp
 python setup.py develop
 ```
 ## Model Preparation
-1. Download the pretrained model from [here](https://huggingface.co/yfji/DDP-Weight/resolve/main/ddp_convnext_t_4x4_512x1024_160k_cityscapes.pth) and put it under `controlnet/annotator/ckpts/ddp_swin_t_2x8_512x512_160k_ade20k`
+1. Download the pretrained model from [here](https://huggingface.co/yfji/DDP-Weight/blob/main/ddp_swin_t_2x8_512x512_160k_ade20k.pth) and put it under `controlnet/annotator/ckpts/ddp_swin_t_2x8_512x512_160k_ade20k`
 2. Download the controlnet pretrained model from [here](https://huggingface.co/lllyasviel/ControlNet/blob/main/models/control_sd15_seg.pth) and put it under `controlnet/models`
 3. Launch the gradio server
 ```
