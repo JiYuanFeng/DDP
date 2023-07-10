@@ -37,8 +37,8 @@ please refer to each task folder for more details.
 - [ ] Depth Estimation code
 - [ ] BEVMap checkpoints
 - [ ] BEVMap Segmentation code
-- [ ] Mask Conditioned ControlNet checkpoints
-- [ ] Mask Conditioned ControlNet code
+- [x] Mask Conditioned ControlNet checkpoints
+- [x] Mask Conditioned ControlNet code
 - [x] Segmentation checkpoints
 - [x] Segmentation code
 - [x] Initialization
