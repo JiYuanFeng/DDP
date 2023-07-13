@@ -33,7 +33,7 @@ We propose a simple, efficient, yet powerful framework for dense visual predicti
 please refer to each task folder for more details.
 
 ## Catalog
-- [] Depth Estimation checkpoints
+- [ ] Depth Estimation checkpoints
 - [x] Depth Estimation code
 - [ ] BEVMap checkpoints
 - [ ] BEVMap Segmentation code
