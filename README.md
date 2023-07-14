@@ -12,7 +12,7 @@ This repository contains the official Pytorch implementation of training & evalu
 - [x] BEV Map Segmentation
 - [x] Mask Conditioned ControlNet
 
-We use [MMSegmentation](https://github.com/open-mmlab/mmsegmentation) , [Monocular-Depth-Estimation-Toolbox](https://github.com/zhyever/Monocular-Depth-Estimation-Toolbox), [BEVfusion](https://github.com/mit-han-lab/bevfusion), [ControlNet](https://github.com/lllyasviel/ControlNet), as the correspond codebase.
+We use [MMSegmentation](https://github.com/open-mmlab/mmsegmentation), [Monocular-Depth-Estimation-Toolbox](https://github.com/zhyever/Monocular-Depth-Estimation-Toolbox), [BEVfusion](https://github.com/mit-han-lab/bevfusion), [ControlNet](https://github.com/lllyasviel/ControlNet), as the correspond codebase.
 We would like to express our sincere gratitude to the developers of these codebases.
 
 ## News
