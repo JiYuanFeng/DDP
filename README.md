@@ -1,5 +1,11 @@
 # 🎆 DDP: Diffusion Model for Dense Visual Prediction
 
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/ddp-diffusion-model-for-dense-visual/monocular-depth-estimation-on-kitti-eigen)](https://paperswithcode.com/sota/monocular-depth-estimation-on-kitti-eigen?p=ddp-diffusion-model-for-dense-visual)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/ddp-diffusion-model-for-dense-visual/monocular-depth-estimation-on-sun-rgbd)](https://paperswithcode.com/sota/monocular-depth-estimation-on-sun-rgbd?p=ddp-diffusion-model-for-dense-visual)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/ddp-diffusion-model-for-dense-visual/monocular-depth-estimation-on-nyu-depth-v2)](https://paperswithcode.com/sota/monocular-depth-estimation-on-nyu-depth-v2?p=ddp-diffusion-model-for-dense-visual)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/ddp-diffusion-model-for-dense-visual/semantic-segmentation-on-cityscapes-val)](https://paperswithcode.com/sota/semantic-segmentation-on-cityscapes-val?p=ddp-diffusion-model-for-dense-visual)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/ddp-diffusion-model-for-dense-visual/semantic-segmentation-on-ade20k)](https://paperswithcode.com/sota/semantic-segmentation-on-ade20k?p=ddp-diffusion-model-for-dense-visual)
+
 The official implementation of the paper "[DDP: Diffusion Model for Dense Visual Prediction](https://arxiv.org/abs/2303.17559)".
 
 ### [Project Page](https://github.com/JiYuanFeng/DDP) | [Paper](https://arxiv.org/abs/2303.17559)
