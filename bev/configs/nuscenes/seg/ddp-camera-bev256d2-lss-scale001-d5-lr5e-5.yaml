@@ -1,0 +1,132 @@
+model:
+  type: DDP
+  feat_channels: 256
+  bit_scale: 0.01
+  timesteps: 3
+  randsteps: 5
+  time_difference: 1
+  learned_sinusoidal_dim: 16
+  sample_range: [0, 0.999]
+  noise_schedule: 'cosine'
+  diffusion: 'ddim'
+  encoders:
+    camera:
+      backbone:
+        type: SwinTransformer
+        embed_dims: 96
+        depths: [2, 2, 6, 2]
+        num_heads: [3, 6, 12, 24]
+        window_size: 7
+        mlp_ratio: 4
+        qkv_bias: true
+        qk_scale: null
+        drop_rate: 0.
+        attn_drop_rate: 0.
+        drop_path_rate: 0.3
+        patch_norm: true
+        out_indices: [1, 2, 3]
+        with_cp: false
+        convert_weights: true
+        init_cfg:
+          type: Pretrained
+          checkpoint: https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth
+      neck:
+        type: GeneralizedLSSFPN
+        in_channels: [192, 384, 768]
+        out_channels: 256
+        start_level: 0
+        num_outs: 3
+        norm_cfg:
+          type: BN2d
+          requires_grad: true
+        act_cfg:
+          type: ReLU
+          inplace: true
+        upsample_cfg:
+          mode: bilinear
+          align_corners: false
+      vtransform:
+        type: LSSTransform
+        in_channels: 256
+        out_channels: 80
+        image_size: ${image_size}
+        feature_size: ${[image_size[0] // 8, image_size[1] // 8]}
+        xbound: [-51.2, 51.2, 0.4]
+        ybound: [-51.2, 51.2, 0.4]
+        zbound: [-10.0, 10.0, 20.0]
+        dbound: [1.0, 60.0, 0.5]
+        downsample: 2
+    lidar:
+      null
+  fuser:
+    null
+  decoder:
+    backbone:
+      type: GeneralizedResNet
+      in_channels: 80
+      blocks:
+        - [ 2, 160, 2 ]
+        - [ 2, 320, 2 ]
+        - [ 2, 640, 1 ]
+    neck:
+      type: LSSFPN
+      in_indices: [ -1, 0 ]
+      in_channels: [ 640, 160 ]
+      out_channels: 256
+      scale_factor: 2
+  heads:
+    map:
+      type: DeformableHeadWithTime
+      in_channels: 256
+      num_feature_levels: 1
+      encoder:
+        type: DetrTransformerEncoder
+        num_layers: 5
+        transformerlayers:
+          type: BaseTransformerLayer
+          use_time_mlp: True
+          attn_cfgs:
+            type: MultiScaleDeformableAttention
+            embed_dims: 256
+            num_levels: 1
+            num_heads: 8
+            dropout: 0.0
+          ffn_cfgs:
+            type: FFN
+            embed_dims: 256
+            feedforward_channels: 1024
+            num_fcs: 2
+            act_cfg:
+              type: GELU
+            ffn_drop: 0.0
+          operation_order: ['self_attn', 'norm', 'ffn', 'norm']
+      positional_encoding:
+        type: SinePositionalEncoding
+        num_feats: 128
+        normalize: True
+        offset: -0.5
+
+optimizer:
+  type: AdamW
+  lr: 5.0e-5
+  weight_decay: 0.01
+  paramwise_cfg:
+    custom_keys:
+      absolute_pos_embed:
+        decay_mult: 0
+      relative_position_bias_table:
+        decay_mult: 0
+
+optimizer_config:
+  grad_clip:
+    max_norm: 35
+    norm_type: 2
+
+lr_config:
+  policy: cyclic
+
+momentum_config:
+  policy: cyclic
+
+
+find_unused_parameters: true
