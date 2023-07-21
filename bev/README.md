@@ -89,7 +89,7 @@ torchpack dist-run -np 8 python tools/test.py configs/nuscenes/seg/ddp-fusion-be
 ```
 torchpack dist-run -np 1 python3 tools/visualize.py \
  configs/nuscenes/seg/ddp-fusion-bev256d2-lss-scale001-d5-lr5e-5.yaml \
- --checkpoint ddp-camera-bev256d2-lss-scale001-d5-lr5e-5.pth \
+ --checkpoint ddp-fusion-bev256d2-lss-scale001-d5-lr5e-5.pth \
  --out-dir figrures/temp \
  --mode pred
 ```

@@ -41,8 +41,8 @@ please refer to each task folder for more details.
 ## Catalog
 - [ ] Depth Estimation checkpoints
 - [x] Depth Estimation code
-- [ ] BEVMap checkpoints
-- [ ] BEVMap Segmentation code
+- [x] BEVMap checkpoints
+- [x] BEVMap Segmentation code
 - [x] Mask Conditioned ControlNet checkpoints
 - [x] Mask Conditioned ControlNet code
 - [x] Segmentation checkpoints
