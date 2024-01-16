@@ -1,5 +1,5 @@
 dataset_type: NuScenesDataset
-dataset_root: data/nuscenes/
+dataset_root: ./data/nuscenes/
 gt_paste_stop_epoch: -1
 reduce_beams: 32
 load_dim: 5
