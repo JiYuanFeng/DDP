@@ -1,2 +1,16 @@
 
 .idea/
+bev/mmdet3d/ops*
+bev/build/
+bev/ckpt/
+bev/data/
+segmentation/
+bev/nuscenes
+*__pycache__*
+*/*.pyc
+*/*.so
+*/*.egg-info
+*/*.egg
+*/.cache
+*/.pytest_cache
+*.so

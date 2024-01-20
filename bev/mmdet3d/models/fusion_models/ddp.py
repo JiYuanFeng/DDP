@@ -23,7 +23,7 @@ from mmdet3d.models import FUSIONMODELS
 
 from .bevfusion import BEVFusion
 
-__all__ = ["DiffBEVFusion"]
+__all__ = ["DDP"]
 
 from ...ops.norm import resize
 
