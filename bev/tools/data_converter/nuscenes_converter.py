@@ -25,7 +25,7 @@ nus_attributes = ('cycle.with_rider', 'cycle.without_rider',
 def create_nuscenes_infos(root_path,
                           info_prefix,
                           version='v1.0-trainval',
-                          max_sweeps=10, 
+                          max_sweeps=10,
                           max_radar_sweeps=10):
     """Create info file of nuscene dataset.
     Given the raw data, generate its related info file in pkl format.
@@ -149,7 +149,7 @@ def _fill_trainval_infos(nusc,
                          train_scenes,
                          val_scenes,
                          test=False,
-                         max_sweeps=10, 
+                         max_sweeps=10,
                          max_radar_sweeps=10):
     """Generate the train/val infos from the raw data.
     Args:
@@ -171,9 +171,9 @@ def _fill_trainval_infos(nusc,
     i_ = 0
 
     for sample in mmcv.track_iter_progress(nusc.sample):
-        # i_ += 1 
-        # if i_ > 6: 
-        #     break 
+        # i_ += 1
+        # if i_ > 6:
+        #     break
 
         lidar_token = sample['data']['LIDAR_TOP']
         sd_rec = nusc.get('sample_data', sample['data']['LIDAR_TOP'])
@@ -182,7 +182,7 @@ def _fill_trainval_infos(nusc,
         pose_record = nusc.get('ego_pose', sd_rec['ego_pose_token'])
         lidar_path, boxes, _ = nusc.get_sample_data(lidar_token)
         location = nusc.get(
-            "log",nusc.get("scene",sample["scene_token"])["log_token"]
+            "log", nusc.get("scene", sample["scene_token"])["log_token"]
         )["location"]
         mmcv.check_file_exist(lidar_path)
 
@@ -191,14 +191,14 @@ def _fill_trainval_infos(nusc,
             'token': sample['token'],
             'sweeps': [],
             'cams': dict(),
-            'radars': dict(), 
+            'radars': dict(),
             'lidar2ego_translation': cs_record['translation'],
             'lidar2ego_rotation': cs_record['rotation'],
             'ego2global_translation': pose_record['translation'],
             'ego2global_rotation': pose_record['rotation'],
             'timestamp': sample['timestamp'],
             'prev_token': sample['prev'],
-            'location':location,
+            'location': location,
         }
 
         l2e_r = info['lidar2ego_rotation']
@@ -225,7 +225,7 @@ def _fill_trainval_infos(nusc,
             cam_info.update(cam_intrinsic=cam_intrinsic)
             info['cams'].update({cam: cam_info})
 
-        radar_names = ['RADAR_FRONT', 'RADAR_FRONT_LEFT', 'RADAR_FRONT_RIGHT',  'RADAR_BACK_LEFT', 'RADAR_BACK_RIGHT']
+        radar_names = ['RADAR_FRONT', 'RADAR_FRONT_LEFT', 'RADAR_FRONT_RIGHT', 'RADAR_BACK_LEFT', 'RADAR_BACK_RIGHT']
 
         for radar_name in radar_names:
             radar_token = sample['data'][radar_name]
@@ -237,7 +237,7 @@ def _fill_trainval_infos(nusc,
                     radar_path, _, radar_intrin = nusc.get_sample_data(radar_token)
 
                     radar_info = obtain_sensor2top(nusc, radar_token, l2e_t, l2e_r_mat,
-                                                e2g_t, e2g_r_mat, radar_name)
+                                                   e2g_t, e2g_r_mat, radar_name)
                     sweeps.append(radar_info)
                     radar_token = radar_rec['prev']
                     radar_rec = nusc.get('sample_data', radar_token)
@@ -245,9 +245,9 @@ def _fill_trainval_infos(nusc,
                     radar_path, _, radar_intrin = nusc.get_sample_data(radar_token)
 
                     radar_info = obtain_sensor2top(nusc, radar_token, l2e_t, l2e_r_mat,
-                                                e2g_t, e2g_r_mat, radar_name)
+                                                   e2g_t, e2g_r_mat, radar_name)
                     sweeps.append(radar_info)
-            
+
             info['radars'].update({radar_name: sweeps})
         # obtain sweeps for a single key-frame
         sd_rec = nusc.get('sample_data', sample['data']['LIDAR_TOP'])
@@ -308,7 +308,7 @@ def _fill_trainval_infos(nusc,
         else:
             val_nusc_infos.append(info)
             token2idx[info['token']] = ('val', len(val_nusc_infos) - 1)
-    
+
     for info in train_nusc_infos:
         prev_token = info['prev_token']
         if prev_token == '':
@@ -379,9 +379,9 @@ def obtain_sensor2top(nusc,
     l2e_r_s_mat = Quaternion(l2e_r_s).rotation_matrix
     e2g_r_s_mat = Quaternion(e2g_r_s).rotation_matrix
     R = (l2e_r_s_mat.T @ e2g_r_s_mat.T) @ (
-        np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T)
+            np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T)
     T = (l2e_t_s @ e2g_r_s_mat.T + e2g_t_s) @ (
-        np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T)
+            np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T)
     T -= e2g_t @ (np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T
                   ) + l2e_t @ np.linalg.inv(l2e_r_mat).T
     sweep['sensor2lidar_rotation'] = R.T  # points @ R.T + T
@@ -471,8 +471,8 @@ def get_2d_boxes(nusc,
     sd_rec = nusc.get('sample_data', sample_data_token)
 
     assert sd_rec[
-        'sensor_modality'] == 'camera', 'Error: get_2d_boxes only works' \
-        ' for camera sample_data!'
+               'sensor_modality'] == 'camera', 'Error: get_2d_boxes only works' \
+                                               ' for camera sample_data!'
     if not sd_rec['is_key_frame']:
         raise ValueError(
             'The 2D re-projections are available only for keyframes.')
@@ -578,7 +578,7 @@ def get_2d_boxes(nusc,
 
 
 def post_process_coords(
-    corner_coords: List, imsize: Tuple[int, int] = (1600, 900)
+        corner_coords: List, imsize: Tuple[int, int] = (1600, 900)
 ) -> Union[Tuple[float, float, float, float], None]:
     """Get the intersection of the convex hull of the reprojected bbox corners
     and the image canvas, return None if no intersection.
