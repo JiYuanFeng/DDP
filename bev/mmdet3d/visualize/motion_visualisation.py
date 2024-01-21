@@ -289,7 +289,7 @@ def plot_instance_map(instance_image, instance_map, instance_colours=None, bg_im
     return plot_image
 
 
-def visualise_output(labels, output):
+def visualise_output(labels, output,only_instance=False):
     assert labels is not None or output is not None
 
     if labels is not None:
@@ -315,26 +315,29 @@ def visualise_output(labels, output):
                 labels['instance'][b, t].cpu(), instance_map)[::-1]
             instance_plot = make_contour(instance_plot)
 
-            semantic_seg = labels['segmentation'].squeeze(2).cpu().numpy()
-            semantic_plot = semantic_colours[semantic_seg[b, t][::-1]]
-            semantic_plot = make_contour(semantic_plot)
+            if not only_instance:
+                semantic_seg = labels['segmentation'].squeeze(2).cpu().numpy()
+                semantic_plot = semantic_colours[semantic_seg[b, t][::-1]]
+                semantic_plot = make_contour(semantic_plot)
 
-            future_flow_plot = labels['flow'][b, t].cpu().numpy()
-            future_flow_plot[:, semantic_seg[b, t] != 1] = 0
-            future_flow_plot = flow_to_image(future_flow_plot)[::-1]
-            future_flow_plot = make_contour(future_flow_plot)
+                future_flow_plot = labels['flow'][b, t].cpu().numpy()
+                future_flow_plot[:, semantic_seg[b, t] != 1] = 0
+                future_flow_plot = flow_to_image(future_flow_plot)[::-1]
+                future_flow_plot = make_contour(future_flow_plot)
 
-            center_plot = heatmap_image(
-                labels['centerness'][b, t, 0].cpu().numpy())[::-1]
-            center_plot = make_contour(center_plot)
+                center_plot = heatmap_image(
+                    labels['centerness'][b, t, 0].cpu().numpy())[::-1]
+                center_plot = make_contour(center_plot)
 
-            offset_plot = labels['offset'][b, t].cpu().numpy()
-            offset_plot[:, semantic_seg[b, t] != 1] = 0
-            offset_plot = flow_to_image(offset_plot)[::-1]
-            offset_plot = make_contour(offset_plot)
+                offset_plot = labels['offset'][b, t].cpu().numpy()
+                offset_plot[:, semantic_seg[b, t] != 1] = 0
+                offset_plot = flow_to_image(offset_plot)[::-1]
+                offset_plot = make_contour(offset_plot)
 
-            out_t.append(np.concatenate([instance_plot, future_flow_plot,
-                                        semantic_plot, center_plot, offset_plot], axis=0))
+                out_t.append(np.concatenate([instance_plot, future_flow_plot,
+                                            semantic_plot, center_plot, offset_plot], axis=0))
+            else:
+                out_t.append(np.concatenate([instance_plot], axis=0))
 
         # Predictions
         if output is not None:

@@ -9,7 +9,7 @@ import cv2
 import mmcv
 from PIL import Image
 
-from .motion_visualisation import plot_instance_map, visualise_output, make_contour, generate_instance_colours, plot_motion_prediction
+from .motion_visualisation import plot_instance_map, visualise_output,make_contour, generate_instance_colours, plot_motion_prediction
 #from mmdet3d.core.visualizer.image_vis import draw_lidar_bbox3d_on_img
 
 import pdb
@@ -23,9 +23,20 @@ def convert_figure_numpy(figure):
     return figure_np
 
 
+def rotate_flip_image(image):
+    pil_img = Image.fromarray(image)
+    pil_img = pil_img.transpose(Image.ROTATE_180)
+    pil_img = pil_img.transpose(Image.FLIP_LEFT_RIGHT)
+
+    return np.array(pil_img)
+def flip_image(image):
+    pil_img = Image.fromarray(image)
+    pil_img = pil_img.transpose(Image.FLIP_TOP_BOTTOM)
+
+    return np.array(pil_img)
 def flip_rotate_image(image):
     pil_img = Image.fromarray(image)
-    #pil_img = pil_img.transpose(Image.FLIP_TOP_BOTTOM)
+    pil_img = pil_img.transpose(Image.FLIP_TOP_BOTTOM)
     pil_img = pil_img.transpose(Image.ROTATE_90)
 
     return np.array(pil_img)
@@ -226,16 +237,16 @@ class Visualizer(object):
         # labels require ['instance', 'segmentation', 'flow', 'centerness', 'offset']
         # output require ['segmentation', 'instance_flow', 'instance_center', 'instance_offset']
         # [B, T, C, H, W]
-        video = visualise_output(labels, output)[0]
-        save_dir = os.path.join(self.out_dir, 'motion')
+        video = visualise_output(labels, output,only_instance=True)[0]
 
         gifs = []
         for index in range(video.shape[0]):
             image = video[index].transpose((1, 2, 0))
+            image = rotate_flip_image(image)
             gifs.append(image)
 
-        os.makedirs(save_dir, exist_ok=True)
-        imageio.mimsave("{}/motion.gif".format(save_dir), gifs, fps=fps)
+        os.makedirs(self.out_dir, exist_ok=True)
+        imageio.mimsave("{}/motion.gif".format(self.out_dir), gifs, fps=fps)
     # def visualize_detection(self, img_metas, bbox_results, gt_bboxes_3d=None,
     #                         gt_labels_3d=None, vis_thresh=0.25):
     #

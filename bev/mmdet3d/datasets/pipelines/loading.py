@@ -310,6 +310,8 @@ class LoadBEVSegmentation:
                 labels[k, masks[index]] = 1
 
         data["gt_masks_bev"] = labels # (c, w, h ) , c is the number of classes. 1 for match, 0 for not match
+        self.visualization(data)
+        assert False
         return data
     def visualization(self,results):
         masks = results["gt_masks_bev"]

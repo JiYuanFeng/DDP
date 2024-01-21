@@ -58,7 +58,7 @@ class ConvertMotionLabels(object):
 
         self.warper = FeatureWarper(grid_conf=grid_conf)
         self.receptive_field = receptive_field
-        self.visualizer = Visualizer(out_dir="./figures",coordinate_system="ego")
+        self.visualizer = Visualizer(out_dir="./figures/test",coordinate_system="ego")
     def __call__(self, results):
         # annotation_token ==> instance_id
         instance_map = {}
@@ -166,6 +166,7 @@ class ConvertMotionLabels(object):
         return results
     def visualization(self,results,save_path=None):
         motion_labels, _ = self.prepare_future_labels(results)
+        self.visualizer.visualize_motion_gif(labels=motion_labels)
         self.visualizer.visualize_gt_motion(motion_labels=motion_labels,save_path=save_path)
     def prepare_future_labels(self, results):
         labels = {}
