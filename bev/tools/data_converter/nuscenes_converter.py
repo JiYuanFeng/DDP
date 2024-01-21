@@ -188,6 +188,7 @@ def _fill_trainval_infos(nusc,
 
         info = {
             'lidar_path': lidar_path,
+            'scene_token': sample['scene_token'],
             'token': sample['token'],
             'sweeps': [],
             'cams': dict(),
@@ -293,6 +294,10 @@ def _fill_trainval_infos(nusc,
             gt_boxes = np.concatenate([locs, dims, -rots - np.pi / 2], axis=1)
             assert len(gt_boxes) == len(
                 annotations), f'{len(gt_boxes)}, {len(annotations)}'
+
+            instance_tokens = [anno['instance_token'] for anno in annotations]
+            instance_tokens = np.array(instance_tokens)
+
             info['gt_boxes'] = gt_boxes
             info['gt_names'] = names
             info['gt_velocity'] = velocity.reshape(-1, 2)
@@ -301,6 +306,11 @@ def _fill_trainval_infos(nusc,
             info['num_radar_pts'] = np.array(
                 [a['num_radar_pts'] for a in annotations])
             info['valid_flag'] = valid_flag
+            info['instance_tokens'] = instance_tokens
+
+            visibility_tokens = [int(anno['visibility_token'])
+                                 for anno in annotations]
+            info['visibility_tokens'] = np.array(visibility_tokens)
 
         if sample['scene_token'] in train_scenes:
             train_nusc_infos.append(info)

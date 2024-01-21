@@ -173,6 +173,7 @@ class DDP(BEVFusion):
                     metas,
                 )
             elif sensor == "lidar":
+                assert points is not None, "points must be provided for lidar encoder"
                 feature = self.extract_lidar_features(points)
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")

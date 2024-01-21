@@ -9,6 +9,11 @@ load_augmented: null
 point_cloud_range: [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 voxel_size: [0.1, 0.1, 0.2]
 image_size: [256, 704]
+motion_grid_conf:
+    xbound: [-50.0, 50.0, 0.5]
+    ybound: [-50.0, 50.0, 0.5]
+    zbound: [-10.0, 10.0, 20.0]
+    dbound: [1.0, 60.0, 1.0]
 
 augment2d:
   resize: [[0.38, 0.55], [0.48, 0.48]]
@@ -56,30 +61,30 @@ train_pipeline:
   -
     type: LoadMultiViewImageFromFiles
     to_float32: true
-  -
-    type: LoadPointsFromFile
-    coord_type: LIDAR
-    load_dim: ${load_dim}
-    use_dim: ${use_dim}
-    reduce_beams: ${reduce_beams}
-    load_augmented: ${load_augmented}
-  -
-    type: LoadPointsFromMultiSweeps
-    sweeps_num: 9
-    load_dim: ${load_dim}
-    use_dim: ${use_dim}
-    reduce_beams: ${reduce_beams}
-    pad_empty_sweeps: true
-    remove_close: true
-    load_augmented: ${load_augmented}
-  -
-    type: LoadAnnotations3D
+#  -
+#    type: LoadPointsFromFile
+#    coord_type: LIDAR
+#    load_dim: ${load_dim}
+#    use_dim: ${use_dim}
+#    reduce_beams: ${reduce_beams}
+#    load_augmented: ${load_augmented}
+#  -
+#    type: LoadPointsFromMultiSweeps
+#    sweeps_num: 9
+#    load_dim: ${load_dim}
+#    use_dim: ${use_dim}
+#    reduce_beams: ${reduce_beams}
+#    pad_empty_sweeps: true
+#    remove_close: true
+#    load_augmented: ${load_augmented}
+
+  - type: LoadAnnotations3D_MTL
     with_bbox_3d: true
     with_label_3d: true
-    with_attr_label: False
+    with_instance_tokens: true
   -
     type: ObjectPaste
-    stop_epoch: ${gt_paste_stop_epoch}
+    stop_epoch: ${gt_paste_stop_epoch} # set to -1, so this function won't be executed
     db_sampler:
       dataset_root: ${dataset_root}
       info_path: ${dataset_root + "nuscenes_dbinfos_mini_train.pkl"}
@@ -115,6 +120,10 @@ train_pipeline:
         load_dim: ${load_dim}
         use_dim: ${use_dim}
         reduce_beams: ${reduce_beams}
+  - type: ConvertMotionLabels
+    grid_conf: ${motion_grid_conf}
+    only_vehicle: true
+    receptive_field: 1
   -
     type: ImageAug3D
     final_dim: ${image_size}
@@ -128,18 +137,19 @@ train_pipeline:
     resize_lim: ${augment3d.scale}
     rot_lim: ${augment3d.rotate}
     trans_lim: ${augment3d.translate}
-    is_train: true
+    is_train: false
   -
     type: LoadBEVSegmentation
     dataset_root: ${dataset_root}
     xbound: [-50.0, 50.0, 0.5]
     ybound: [-50.0, 50.0, 0.5]
     classes: ${map_classes}
-  -
-    type: RandomFlip3D
-  -
-    type: PointsRangeFilter
-    point_cloud_range: ${point_cloud_range}
+
+#  -
+#    type: RandomFlip3D
+#  -
+#    type: PointsRangeFilter
+#    point_cloud_range: ${point_cloud_range}
   -
     type: ObjectRangeFilter
     point_cloud_range: ${point_cloud_range}
@@ -150,19 +160,19 @@ train_pipeline:
     type: ImageNormalize
     mean: [0.485, 0.456, 0.406]
     std: [0.229, 0.224, 0.225]
-  - 
-    type: GridMask
-    use_h: true
-    use_w: true
-    max_epoch: ${max_epochs}
-    rotate: 1
-    offset: false
-    ratio: 0.5
-    mode: 1
-    prob: ${augment2d.gridmask.prob}
-    fixed_prob: ${augment2d.gridmask.fixed_prob}
-  -
-    type: PointShuffle
+#  -
+#    type: GridMask
+#    use_h: true
+#    use_w: true
+#    max_epoch: ${max_epochs}
+#    rotate: 1
+#    offset: false
+#    ratio: 0.5
+#    mode: 1
+#    prob: ${augment2d.gridmask.prob}
+#    fixed_prob: ${augment2d.gridmask.fixed_prob}
+#  -
+#    type: PointShuffle
   -
     type: DefaultFormatBundle3D
     classes: ${object_classes}
@@ -170,7 +180,7 @@ train_pipeline:
     type: Collect3D
     keys:
       - img
-      - points
+      #- points
       - gt_bboxes_3d
       - gt_labels_3d
       - gt_masks_bev
@@ -188,27 +198,31 @@ test_pipeline:
   -
     type: LoadMultiViewImageFromFiles
     to_float32: true
-  -
-    type: LoadPointsFromFile
-    coord_type: LIDAR
-    load_dim: ${load_dim}
-    use_dim: ${use_dim}
-    reduce_beams: ${reduce_beams}
-    load_augmented: ${load_augmented}
-  -
-    type: LoadPointsFromMultiSweeps
-    sweeps_num: 9
-    load_dim: ${load_dim}
-    use_dim: ${use_dim}
-    reduce_beams: ${reduce_beams}
-    pad_empty_sweeps: true
-    remove_close: true
-    load_augmented: ${load_augmented}
-  -
-    type: LoadAnnotations3D
+#  -
+#    type: LoadPointsFromFile
+#    coord_type: LIDAR
+#    load_dim: ${load_dim}
+#    use_dim: ${use_dim}
+#    reduce_beams: ${reduce_beams}
+#    load_augmented: ${load_augmented}
+#  -
+#    type: LoadPointsFromMultiSweeps
+#    sweeps_num: 9
+#    load_dim: ${load_dim}
+#    use_dim: ${use_dim}
+#    reduce_beams: ${reduce_beams}
+#    pad_empty_sweeps: true
+#    remove_close: true
+#    load_augmented: ${load_augmented}
+#  -
+#    type: LoadAnnotations3D
+#    with_bbox_3d: true
+#    with_label_3d: true
+#    with_attr_label: False
+  - type: LoadAnnotations3D_MTL
     with_bbox_3d: true
     with_label_3d: true
-    with_attr_label: False
+    with_instance_tokens: true
   -
     type: ImageAug3D
     final_dim: ${image_size}
@@ -229,9 +243,9 @@ test_pipeline:
     xbound: [-50.0, 50.0, 0.5]
     ybound: [-50.0, 50.0, 0.5]
     classes: ${map_classes}
-  -
-    type: PointsRangeFilter
-    point_cloud_range: ${point_cloud_range}
+#  -
+#    type: PointsRangeFilter
+#    point_cloud_range: ${point_cloud_range}
   -
     type: ImageNormalize
     mean: [0.485, 0.456, 0.406]
@@ -243,7 +257,7 @@ test_pipeline:
     type: Collect3D
     keys:
       - img
-      - points
+#      - points
       - gt_bboxes_3d
       - gt_labels_3d
       - gt_masks_bev
@@ -273,6 +287,9 @@ data:
       test_mode: false
       use_valid_flag: true
       box_type_3d: LiDAR
+      receptive_field: 1
+      future_frames: 4
+      filter_invalid_sample: true
   val:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
@@ -283,6 +300,9 @@ data:
     modality: ${input_modality}
     test_mode: false
     box_type_3d: LiDAR
+    receptive_field: 1
+    future_frames: 4
+    filter_invalid_sample: true
   test:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
@@ -293,6 +313,9 @@ data:
     modality: ${input_modality}
     test_mode: true
     box_type_3d: LiDAR
+    receptive_field: 1
+    future_frames: 4
+    filter_invalid_sample: true
 
 evaluation:
   interval: 1
