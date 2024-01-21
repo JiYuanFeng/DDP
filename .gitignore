@@ -14,3 +14,5 @@ bev/nuscenes
 */.cache
 */.pytest_cache
 *.so
+bev/figures/
+bev/runs/

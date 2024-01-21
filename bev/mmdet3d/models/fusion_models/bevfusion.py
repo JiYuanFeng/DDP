@@ -162,7 +162,7 @@ class BEVFusion(Base3DFusionModel):
 
         return feats, coords, sizes
 
-    @force_fp32(apply_to=("img", "points"))
+    @auto_fp16(apply_to=("img", "points"))
     def forward(
         self,
         img,
@@ -203,7 +203,7 @@ class BEVFusion(Base3DFusionModel):
             )
             return outputs
 
-    @force_fp32(apply_to=("img", "points"))
+    @auto_fp16(apply_to=("img", "points"))
     def forward_single(
         self,
         img,

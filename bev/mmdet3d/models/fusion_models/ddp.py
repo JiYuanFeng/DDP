@@ -135,7 +135,7 @@ class DDP(BEVFusion):
             times.append(time)
         return times
 
-    @auto_fp16(apply_to=("img", "points"))
+    @force_fp32(apply_to=("img", "points"))
     def forward_single(
             self,
             img,

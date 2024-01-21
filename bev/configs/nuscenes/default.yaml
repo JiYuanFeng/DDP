@@ -46,7 +46,7 @@ map_classes:
   - divider
 
 input_modality:
-  use_lidar: true
+  use_lidar: false
   use_camera: true
   use_radar: false
   use_map: false
