@@ -1,22 +1,21 @@
 import tempfile
 from os import path as osp
-from typing import Any, Dict
 
 import mmcv
 import numpy as np
 import pyquaternion
 import torch
+from mmdet.datasets import DATASETS
 from nuscenes.utils.data_classes import Box as NuScenesBox
 from pyquaternion import Quaternion
 
-from mmdet.datasets import DATASETS
-
-from ..core.bbox import LiDARInstance3DBoxes
 from .custom_3d import Custom3DDataset
+from .data_utils.geometry import invert_matrix_egopose_numpy, mat2pose_vec
+from ..core.bbox import LiDARInstance3DBoxes
 
 
 @DATASETS.register_module()
-class NuScenesDataset(Custom3DDataset):
+class DDPDataset(Custom3DDataset):
     r"""NuScenes Dataset.
 
     This class serves as the API for experiments on the NuScenes Dataset.
@@ -123,20 +122,23 @@ class NuScenesDataset(Custom3DDataset):
     )
 
     def __init__(
-        self,
-        ann_file,
-        pipeline=None,
-        dataset_root=None,
-        object_classes=None,
-        map_classes=None,
-        load_interval=1,
-        with_velocity=True,
-        modality=None,
-        box_type_3d="LiDAR",
-        filter_empty_gt=True,
-        test_mode=False,
-        eval_version="detection_cvpr_2019",
-        use_valid_flag=False,
+            self,
+            ann_file,
+            pipeline=None,
+            dataset_root=None,
+            object_classes=None,
+            map_classes=None,
+            load_interval=1,
+            with_velocity=True,
+            modality=None,
+            box_type_3d="LiDAR",
+            filter_empty_gt=True,
+            test_mode=False,
+            eval_version="detection_cvpr_2019",
+            use_valid_flag=False,
+            receptive_field=1,
+            future_frames=0,
+            filter_invalid_sample=True,
     ) -> None:
         self.load_interval = load_interval
         self.use_valid_flag = use_valid_flag
@@ -165,7 +167,11 @@ class NuScenesDataset(Custom3DDataset):
                 use_map=False,
                 use_external=False,
             )
-
+        self.receptive_field = receptive_field
+        self.n_future = future_frames
+        self.sequence_length = receptive_field + future_frames
+        self.filter_invalid_sample = filter_invalid_sample
+        self.data_infos.sort(key=lambda x: (x['scene_token'], x['timestamp']))
     def get_cat_ids(self, idx):
         """Get category distribution of single scene.
 
@@ -206,7 +212,118 @@ class NuScenesDataset(Custom3DDataset):
         self.version = self.metadata["version"]
         return data_infos
 
-    def get_data_info(self, index: int) -> Dict[str, Any]:
+    def get_temporal_indices(self, index):
+        current_scene_token = self.data_infos[index]['scene_token']
+
+        # generate the past
+        previous_indices = []
+        for t in range(- self.receptive_field + 1, 0):
+            index_t = index + t
+            if index_t >= 0 and self.data_infos[index_t]['scene_token'] == current_scene_token:
+                previous_indices.append(index_t)
+            else:
+                previous_indices.append(-1)  # for invalid indices
+
+        # generate the future
+        future_indices = []
+        for t in range(1, self.n_future + 1):
+            index_t = index + t
+            if index_t < len(self.data_infos) and self.data_infos[index_t]['scene_token'] == current_scene_token:
+                future_indices.append(index_t)
+            else:
+                future_indices.append(-1)
+
+        return previous_indices, future_indices
+
+    @staticmethod
+    def get_egopose_from_info(info):
+        # ego2global transformation (lidar_ego)
+        e2g_trans_matrix = np.zeros((4, 4), dtype=np.float32)
+        e2g_rot = info['ego2global_rotation']
+        e2g_trans = info['ego2global_translation']
+        e2g_trans_matrix[:3, :3] = pyquaternion.Quaternion(
+            e2g_rot).rotation_matrix
+        e2g_trans_matrix[:3, 3] = np.array(e2g_trans)
+        e2g_trans_matrix[3, 3] = 1.0
+
+        return e2g_trans_matrix
+
+    def get_egomotions(self, indices):
+        # get ego_motion for each frame
+        future_egomotions = []
+        for index in indices:
+            cur_info = self.data_infos[index]
+            ego_motion = np.eye(4, dtype=np.float32)
+            next_frame = index + 1
+
+            # 如何处理 invalid frame
+            if index != -1 and next_frame < len(self.data_infos) and self.data_infos[next_frame]['scene_token'] == \
+                    cur_info['scene_token']:
+                next_info = self.data_infos[next_frame]
+                # get ego2global transformation matrices
+                cur_egopose = self.get_egopose_from_info(cur_info)
+                next_egopose = self.get_egopose_from_info(next_info)
+
+                # trans from cur to next
+                ego_motion = invert_matrix_egopose_numpy(
+                    next_egopose).dot(cur_egopose)  # for ego, from current to next frame
+                ego_motion[3, :3] = 0.0
+                ego_motion[3, 3] = 1.0
+
+            # transformation between adjacent frames
+            # if index == -1 --> then ego_motion is identity
+            ego_motion = torch.Tensor(ego_motion).float()
+            ego_motion = mat2pose_vec(ego_motion)  # transform from a 4x4 matrix to 6 DoF vector
+            future_egomotions.append(ego_motion)
+
+        return torch.stack(future_egomotions, dim=0)
+
+    def prepare_train_data(self, index):
+        """Training data preparation.
+
+        Args:
+            index (int): Index for accessing the target data.
+
+        Returns:
+            dict: Training data dict of the corresponding index.
+        """
+        input_dict = self.get_data_info(index)
+        if input_dict is None:
+            return None
+
+        # when the labels for this frame window are not complete, skip the sample
+        if self.filter_invalid_sample and input_dict['has_invalid_frame'] is True:
+            return None
+
+        self.pre_pipeline(input_dict)
+        example = self.pipeline(input_dict)
+
+        if self.filter_empty_gt and (example is None or
+                                     ~(example['gt_labels_3d']._data != -1).any()):
+            return None
+        if "points" not in example:
+            example["points"] = []
+        return example
+
+    def get_data_info(self, index):
+        """Get data info according to the given index.
+
+        Args:
+            index (int): Index of the sample data to get.
+
+        Returns:
+            dict: Data information that will be passed to the data \
+                preprocessing pipelines. It includes the following keys:
+
+                - sample_idx (str): Sample index.
+                - pts_filename (str): Filename of point clouds.
+                - sweeps (list[dict]): Infos of sweeps.
+                - timestamp (float): Sample timestamp.
+                - img_filename (str, optional): Image filename.
+                - lidar2img (list[np.ndarray], optional): Transformations \
+                    from lidar to different cameras.
+                - ann_info (dict): Annotation info.
+        """
         info = self.data_infos[index]
 
         data = dict(
@@ -217,7 +334,17 @@ class NuScenesDataset(Custom3DDataset):
             timestamp=info["timestamp"],
             location=info["location"],
         )
-
+        # get the previous and future indices
+        prev_indices, future_indices = self.get_temporal_indices(index)
+        # ego motions are needed for all frames
+        all_frames = prev_indices + [index] + future_indices
+        # [num_seq, 6 DoF]
+        future_egomotions = self.get_egomotions(all_frames)
+        data['future_egomotions'] = future_egomotions
+        # whether invalid frame is present
+        has_invalid_frame = -1 in all_frames
+        data['has_invalid_frame'] = has_invalid_frame
+        data['img_is_valid'] = np.array(all_frames) >= 0
         # ego to global transform
         ego2global = np.eye(4).astype(np.float32)
         ego2global[:3, :3] = Quaternion(info["ego2global_rotation"]).rotation_matrix
@@ -244,7 +371,7 @@ class NuScenesDataset(Custom3DDataset):
                 # lidar to camera transform
                 lidar2camera_r = np.linalg.inv(camera_info["sensor2lidar_rotation"])
                 lidar2camera_t = (
-                    camera_info["sensor2lidar_translation"] @ lidar2camera_r.T
+                        camera_info["sensor2lidar_translation"] @ lidar2camera_r.T
                 )
                 lidar2camera_rt = np.eye(4).astype(np.float32)
                 lidar2camera_rt[:3, :3] = lidar2camera_r.T
@@ -253,7 +380,7 @@ class NuScenesDataset(Custom3DDataset):
 
                 # camera intrinsics
                 camera_intrinsics = np.eye(4).astype(np.float32)
-                camera_intrinsics[:3, :3] = camera_info["camera_intrinsics"]
+                camera_intrinsics[:3, :3] = camera_info["cam_intrinsic"]
                 data["camera_intrinsics"].append(camera_intrinsics)
 
                 # lidar to image transform
@@ -273,10 +400,93 @@ class NuScenesDataset(Custom3DDataset):
                 camera2lidar[:3, :3] = camera_info["sensor2lidar_rotation"]
                 camera2lidar[:3, 3] = camera_info["sensor2lidar_translation"]
                 data["camera2lidar"].append(camera2lidar)
+        label_frames = [index] + future_indices
+        detection_ann_infos = []
+        for label_frame in label_frames: # current to future frames
+            if label_frame >= 0:
+                detection_ann_infos.append(
+                    self.get_detection_ann_info(label_frame))
+            else:
+                detection_ann_infos.append(None)
 
-        annos = self.get_ann_info(index)
-        data["ann_info"] = annos
+        data['ann_info'] = detection_ann_infos
+        # annos = self.get_ann_info(index)
+        # data["ann_info"] = annos
         return data
+
+    def get_detection_ann_info(self, index):
+        """Get annotation info according to the given index.
+
+        Args:
+            index (int): Index of the annotation data to get.
+
+        Returns:
+            dict: Annotation information consists of the following keys:
+
+                - gt_bboxes_3d (:obj:`LiDARInstance3DBoxes`): \
+                    3D ground truth bboxes
+                - gt_labels_3d (np.ndarray): Labels of ground truths.
+                - gt_names (list[str]): Class names of ground truths.
+        """
+        ### IMPORTANT ###
+        # there is one problem to solve: some INSTANCE may disappear in some frames due to noise, thus loss the flow consistency
+        info = self.data_infos[index]
+        # still need the gt_tokens
+        gt_bboxes_3d = info["gt_boxes"]
+        gt_names_3d = info["gt_names"]
+        gt_instance_tokens = info["instance_tokens"]
+        # gt_valid_flag = info['valid_flag']
+        gt_vis_tokens = info['visibility_tokens']
+
+        if self.use_valid_flag:
+            gt_valid_flag = info['valid_flag']
+        else:
+            gt_valid_flag = info['num_lidar_pts'] > 0
+
+        # cls_name ==> cls_id
+        gt_labels_3d = []
+        for cat in gt_names_3d:
+            if cat in self.CLASSES:
+                gt_labels_3d.append(self.CLASSES.index(cat))
+            else:
+                gt_labels_3d.append(-1)
+        gt_labels_3d = np.array(gt_labels_3d)
+
+        if self.with_velocity:
+            gt_velocity = info['gt_velocity']
+            nan_mask = np.isnan(gt_velocity[:, 0])
+            gt_velocity[nan_mask] = [0.0, 0.0]
+            gt_bboxes_3d = np.concatenate([gt_bboxes_3d, gt_velocity], axis=-1)
+
+        # the nuscenes box center is [0.5, 0.5, 0.5], we change it to be
+        # the same as KITTI (0.5, 0.5, 0)
+        gt_bboxes_3d = LiDARInstance3DBoxes(
+            gt_bboxes_3d,
+            box_dim=gt_bboxes_3d.shape[-1],
+            origin=(0.5, 0.5, 0.5)).convert_to(self.box_mode_3d)
+
+        # convert 3DBoxes from LiDAR frame to Ego frame
+        lidar2ego_translation = info['lidar2ego_translation']
+        lidar2ego_rotation = info['lidar2ego_rotation']
+        lidar2ego_rotation = pyquaternion.Quaternion(
+            lidar2ego_rotation).rotation_matrix
+
+        gt_bboxes_3d.rotate(lidar2ego_rotation.T) # TODO: is this inverse?
+        gt_bboxes_3d.translate(lidar2ego_translation)
+
+        # # reverse
+        # gt_bboxes_3d.translate([-x for x in lidar2ego_translation])
+        # gt_bboxes_3d.rotate(np.linalg.inv(lidar2ego_rotation.T))
+        anns_results = dict(
+            gt_bboxes_3d=gt_bboxes_3d,
+            gt_labels_3d=gt_labels_3d,
+            gt_names=gt_names_3d,
+            instance_tokens=gt_instance_tokens,
+            gt_valid_flag=gt_valid_flag,
+            gt_vis_tokens=gt_vis_tokens,
+        )
+
+        return anns_results
 
     def get_ann_info(self, index):
         """Get annotation info according to the given index.
@@ -402,11 +612,11 @@ class NuScenesDataset(Custom3DDataset):
         return res_path
 
     def _evaluate_single(
-        self,
-        result_path,
-        logger=None,
-        metric="bbox",
-        result_name="pts_bbox",
+            self,
+            result_path,
+            logger=None,
+            metric="bbox",
+            result_name="pts_bbox",
     ):
         """Evaluation for a single model in nuScenes protocol.
 
@@ -524,12 +734,12 @@ class NuScenesDataset(Custom3DDataset):
         return metrics
 
     def evaluate(
-        self,
-        results,
-        metric="bbox",
-        jsonfile_prefix=None,
-        result_names=["pts_bbox"],
-        **kwargs,
+            self,
+            results,
+            metric="bbox",
+            jsonfile_prefix=None,
+            result_names=["pts_bbox"],
+            **kwargs,
     ):
         """Evaluation in nuScenes protocol.
 
@@ -611,7 +821,7 @@ def output_to_nusc_box(detection):
 
 
 def lidar_nusc_box_to_global(
-    info, boxes, classes, eval_configs, eval_version="detection_cvpr_2019"
+        info, boxes, classes, eval_configs, eval_version="detection_cvpr_2019"
 ):
     """Convert the box from ego to global coordinate.
 

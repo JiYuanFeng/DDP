@@ -1000,3 +1000,36 @@ class ImageDistort:
             new_imgs.append(img)
         data["img"] = new_imgs
         return data
+@PIPELINES.register_module()
+class ObjectValidFilter(object):
+    """Filter GT objects by their names.
+
+    Args:
+        classes (list[str]): List of class names to be kept for training.
+    """
+
+    def __init__(self):
+        pass
+
+    def __call__(self, input_dict):
+        """Call function to filter objects by their names.
+
+        Args:
+            input_dict (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Results after filtering, 'gt_bboxes_3d', 'gt_labels_3d' \
+                keys are updated in the result dict.
+        """
+
+        valid_flag = input_dict['gt_valid_flag']
+        input_dict['gt_bboxes_3d'] = input_dict['gt_bboxes_3d'][valid_flag]
+        input_dict['gt_labels_3d'] = input_dict['gt_labels_3d'][valid_flag]
+
+        return input_dict
+
+    def __repr__(self):
+        """str: Return a string that describes the module."""
+        repr_str = self.__class__.__name__
+        repr_str += f'(filter objects according to num_lidar_pts & num_radar_pts)'
+        return repr_str

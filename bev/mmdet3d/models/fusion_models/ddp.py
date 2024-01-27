@@ -152,6 +152,8 @@ class DDP(BEVFusion):
             gt_masks_bev=None,
             gt_bboxes_3d=None,
             gt_labels_3d=None,
+            motion_instance=None,
+            motion_segmentation=None,
             **kwargs,
     ):
         features = []
@@ -204,11 +206,20 @@ class DDP(BEVFusion):
                     pred_dict = head(x, metas)
                     losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict)
                 elif type == "map":
-                    batch, c, h, w, device, = *x[0].shape, x[0].device
-                    multi_factor = (torch.arange(self.num_classes, device=device) + 1).view(1, self.num_classes, 1, 1)
+                    batch, c, h, w, device, = *x[0].shape, x[0].device # 4,256,128,128
+                    multi_factor = (torch.arange(self.num_classes, device=device) + 1).view(1, self.num_classes, 1, 1) # (1,6,1,1)
+                    # shape of gt_mask_bev: (4, 6, 200,200)
+                    # shape of motion_instance: (4,5,200,200)  5 is the number of future frames -> problem: how to deal with instance id?
+                    # shape of motion_segmentation: (4,200,200), with only 0 and 1
+                    temp_tensor = motion_segmentation[0]
+                    unique_values = torch.unique(temp_tensor)
+                    unique_values_unsorted = torch.unique(unique_values, sorted=False)
+                    # 打印未排序的结果
                     gt_down = gt_masks_bev * multi_factor
                     gt_down = resize(gt_down.float(), size=(h, w), mode="nearest").to(gt_masks_bev.dtype)
-                    gt_down = self.embedding_table(gt_down).mean(dim=1).permute(0, 3, 1, 2)
+                    # resize to (4,6,128,128*
+                    gt_down = self.embedding_table(gt_down).mean(dim=1).permute(0, 3, 1, 2) # class embedding
+                    # after embedding, its shape becomes (4,256,128,128)
                     gt_down = (torch.sigmoid(gt_down) * 2 - 1) * self.bit_scale
                     # sample timesteps
                     times = torch.zeros((batch,), device=device) \
@@ -222,9 +233,13 @@ class DDP(BEVFusion):
 
                     # conditional input
                     feat = torch.cat([x[0], noised_gt], dim=1)
-                    feat = self.transform(feat)
+                    feat = self.transform(feat) # encode the concat feature
                     input_times = self.time_mlp(noise_level)
+                    # In the original paper, the author use x_t and t to predict the noise of X_0!! not the noise of x_t-1
+                    # so here we also predict the GROUND_TRUTH --> we can then calculate the noise of X_0 (reparameterization trick)
+                    # the reason why we do this is that we don't use MSEloss to predict the noise directly.
                     losses = head([feat], input_times, gt_masks_bev)
+                    # one thing is different here, we use the decoder to predict the gt_masks
                 else:
                     raise ValueError(f"unsupported head: {type}")
                 for name, val in losses.items():

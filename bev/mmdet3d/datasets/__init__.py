@@ -5,3 +5,4 @@ from .custom_3d import *
 from .nuscenes_dataset import *
 from .pipelines import *
 from .utils import *
+from .ddp_dataset import DDPDataset
