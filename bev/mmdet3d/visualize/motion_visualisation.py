@@ -315,11 +315,11 @@ def visualise_output(labels, output,only_instance=False):
                 labels['instance'][b, t].cpu(), instance_map)[::-1]
             instance_plot = make_contour(instance_plot)
 
-            if not only_instance:
-                semantic_seg = labels['segmentation'].squeeze(2).cpu().numpy()
-                semantic_plot = semantic_colours[semantic_seg[b, t][::-1]]
-                semantic_plot = make_contour(semantic_plot)
+            semantic_seg = labels['segmentation'].squeeze(2).cpu().numpy()
+            semantic_plot = semantic_colours[semantic_seg[b, t][::-1]]
+            semantic_plot = make_contour(semantic_plot)
 
+            if not only_instance:
                 future_flow_plot = labels['flow'][b, t].cpu().numpy()
                 future_flow_plot[:, semantic_seg[b, t] != 1] = 0
                 future_flow_plot = flow_to_image(future_flow_plot)[::-1]
@@ -337,7 +337,7 @@ def visualise_output(labels, output,only_instance=False):
                 out_t.append(np.concatenate([instance_plot, future_flow_plot,
                                             semantic_plot, center_plot, offset_plot], axis=0))
             else:
-                out_t.append(np.concatenate([instance_plot], axis=0))
+                out_t.append(np.concatenate([instance_plot,semantic_plot], axis=0))
 
         # Predictions
         if output is not None:

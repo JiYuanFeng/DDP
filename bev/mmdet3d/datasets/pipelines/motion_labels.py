@@ -276,7 +276,7 @@ class CentripetalBackwardFlow(object):
         """
         Generate ground truth for the flow of each instance based on instance segmentation.
         """
-        _, h, w = instance_img.shape
+        seq_len, h, w = instance_img.shape
         x, y = torch.meshgrid(torch.arange(h, dtype=torch.float), torch.arange(w, dtype=torch.float))
         grid = torch.stack((x, y), dim=0)  # (2,h,w)
 
@@ -288,7 +288,7 @@ class CentripetalBackwardFlow(object):
         flow[0, 1, instance_mask] = grid[0, instance_mask].mean(dim=0, keepdim=True).round() - grid[0, instance_mask]
         flow[0, 0, instance_mask] = grid[1, instance_mask].mean(dim=0, keepdim=True).round() - grid[1, instance_mask]
         # beyond set the vector from each instance grid to the center of this instance. The center of each instance is set by mean
-        for i, timestep in enumerate(instance['timestep']):
+        for i, timestep in enumerate(range(seq_len)):
             if i == 0:
                 continue
 
@@ -312,7 +312,7 @@ class CentripetalBackwardFlow(object):
         seq_len, h, w = instance_img.shape
         flow = ignore_index * torch.ones(seq_len, 2, h, w)
 
-        for i, instance_token in enumerate(self.visible_instance_set):  # iterate through each instance
+        for i, instance_token in enumerate(self.total_visible_instance_set):  # iterate through each instance
             flow = self.generate_flow(flow, instance_img, instance_map[instance_token])
         return flow
 
@@ -455,8 +455,7 @@ class CentripetalBackwardFlow(object):
         segmentations = torch.from_numpy(
             np.stack(segmentations, axis=0)).long()
         instances = torch.from_numpy(np.stack(instances, axis=0)).long()
-        #centri_backward_flow = self.get_flow_label(instances, instance_map, ignore_index=255)
-
+        centri_backward_flow = self.get_flow_label(instances, instance_map, ignore_index=255)
         # generate heatmap & offset from segmentation & instance
         # shape of future_egomotion (num_frames,6)
         future_egomotions = results['future_egomotions'][- num_frame:]
@@ -491,8 +490,8 @@ class CentripetalBackwardFlow(object):
 
     def visualization(self, results, save_path=None):
         motion_labels, _ = self.prepare_future_labels(results)
-        #self.visualizer.visualize_motion_gif(labels=motion_labels)
-        self.visualizer.visualize_gt_motion(motion_labels=motion_labels, save_path=save_path)
+        self.visualizer.visualize_motion_gif(labels=motion_labels)
+        #self.visualizer.visualize_gt_motion(motion_labels=motion_labels, save_path=save_path)
 
     def prepare_future_labels(self, results):
         labels = {}
