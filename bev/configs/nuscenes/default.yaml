@@ -77,10 +77,10 @@ train_pipeline:
   #    remove_close: true
   #    load_augmented: ${load_augmented}
 
-  - type: LoadAnnotations3D_MTL
-    with_bbox_3d: true
-    with_label_3d: true
-    with_instance_tokens: true
+#  - type: LoadAnnotations3D_MTL
+#    with_bbox_3d: true
+#    with_label_3d: true
+#    with_instance_tokens: true
   - type: ObjectPaste
     stop_epoch: ${gt_paste_stop_epoch} # set to -1, so this function won't be executed
     db_sampler:
@@ -135,21 +135,21 @@ train_pipeline:
     xbound: [ -50.0, 50.0, 0.5 ]
     ybound: [ -50.0, 50.0, 0.5 ]
     classes: ${map_classes}
-  - type: CentripetalBackwardFlow
-    grid_conf: ${motion_grid_conf}
-    only_vehicle: true
-    receptive_field: 1
+#  - type: CentripetalBackwardFlow
+#    grid_conf: ${motion_grid_conf}
+#    only_vehicle: true
+#    receptive_field: 1
 
   #  -
   #    type: RandomFlip3D
   #  -
   #    type: PointsRangeFilter
   #    point_cloud_range: ${point_cloud_range}
-  - type: ObjectValidFilter
-  - type: ObjectRangeFilter
-    point_cloud_range: ${point_cloud_range}
-  - type: ObjectNameFilter
-    classes: ${object_classes}
+#  - type: ObjectValidFilter
+#  - type: ObjectRangeFilter
+#    point_cloud_range: ${point_cloud_range}
+#  - type: ObjectNameFilter
+#    classes: ${object_classes}
   - type: ImageNormalize
     mean: [ 0.485, 0.456, 0.406 ]
     std: [ 0.229, 0.224, 0.225 ]
@@ -172,11 +172,11 @@ train_pipeline:
     keys:
       - img
       #- points
-      - gt_bboxes_3d
-      - gt_labels_3d
+#      - gt_bboxes_3d
+#      - gt_labels_3d
       - gt_masks_bev
-      - motion_instance
-      - motion_segmentation
+#      - motion_instance
+#      - motion_segmentation
     meta_keys:
       - camera_intrinsics
       - camera2ego
@@ -211,14 +211,14 @@ test_pipeline:
   #    with_bbox_3d: true
   #    with_label_3d: true
   #    with_attr_label: False
-  - type: LoadAnnotations3D_MTL
-    with_bbox_3d: true
-    with_label_3d: true
-    with_instance_tokens: true
-  - type: ConvertMotionLabels
-    grid_conf: ${motion_grid_conf}
-    only_vehicle: true
-    receptive_field: 1
+#  - type: LoadAnnotations3D_MTL
+#    with_bbox_3d: true
+#    with_label_3d: true
+#    with_instance_tokens: true
+#  - type: ConvertMotionLabels
+#    grid_conf: ${motion_grid_conf}
+#    only_vehicle: true
+#    receptive_field: 1
   - type: ImageAug3D
     final_dim: ${image_size}
     resize_lim: ${augment2d.resize[1]}
@@ -239,7 +239,7 @@ test_pipeline:
   #  -
   #    type: PointsRangeFilter
   #    point_cloud_range: ${point_cloud_range}
-  - type: ObjectValidFilter
+#  - type: ObjectValidFilter
   - type: ImageNormalize
     mean: [ 0.485, 0.456, 0.406 ]
     std: [ 0.229, 0.224, 0.225 ]
@@ -248,12 +248,12 @@ test_pipeline:
   - type: Collect3D
     keys:
       - img
-      #      - points
-      - gt_bboxes_3d
-      - gt_labels_3d
+      #- points
+#      - gt_bboxes_3d
+#      - gt_labels_3d
       - gt_masks_bev
-      - motion_instance
-      - motion_segmentation
+#      - motion_instance
+#      - motion_segmentation
     meta_keys:
       - camera_intrinsics
       - camera2ego
@@ -265,8 +265,8 @@ test_pipeline:
       - lidar_aug_matrix
 
 data:
-  samples_per_gpu: 4
-  workers_per_gpu: 4
+  samples_per_gpu: 1
+  workers_per_gpu: 1
   train:
     type: CBGSDataset
     dataset:
@@ -278,11 +278,13 @@ data:
       map_classes: ${map_classes}
       modality: ${input_modality}
       test_mode: false
+      #version: mini
+      #motion_pred_grid_conf: ${motion_grid_conf}
       use_valid_flag: true
       box_type_3d: LiDAR
       receptive_field: 1
-      future_frames: 6
-      filter_invalid_sample: true
+      future_frames: 2
+      #filter_invalid_sample: true
   val:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
@@ -292,10 +294,13 @@ data:
     map_classes: ${map_classes}
     modality: ${input_modality}
     test_mode: false
+    #version: mini
+    #motion_pred_grid_conf: ${motion_grid_conf}
     box_type_3d: LiDAR
     receptive_field: 1
-    future_frames: 4
-    filter_invalid_sample: true
+    future_frames: 2
+    #filter_invalid_sample: true
+
   test:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
@@ -307,7 +312,7 @@ data:
     test_mode: true
     box_type_3d: LiDAR
     receptive_field: 1
-    future_frames: 4
+    future_frames: 2
     filter_invalid_sample: true
 
 evaluation:

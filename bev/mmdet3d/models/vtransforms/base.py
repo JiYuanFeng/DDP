@@ -166,7 +166,6 @@ class BaseTransform(nn.Module):
     def forward(
         self,
         img,
-        points,
         camera2ego,
         lidar2ego,
         lidar2camera,

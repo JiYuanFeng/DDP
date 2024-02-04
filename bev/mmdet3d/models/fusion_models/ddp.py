@@ -1,26 +1,13 @@
 import math
-from typing import Any, Dict
 
 import torch
-from mmcv.runner import auto_fp16, force_fp32
+from einops import rearrange, repeat
 from mmcv.cnn import ConvModule
-
+from mmcv.runner import force_fp32
 from torch import nn
-from torch.nn import functional as F
-
 from torch.special import expm1
-from einops import rearrange, reduce, repeat
 
-from mmdet3d.models.builder import (
-    build_backbone,
-    build_fuser,
-    build_head,
-    build_neck,
-    build_vtransform,
-)
-from mmdet3d.ops import Voxelization, DynamicScatter
 from mmdet3d.models import FUSIONMODELS
-
 from .bevfusion import BEVFusion
 
 __all__ = ["DDP"]
@@ -77,6 +64,7 @@ class DDP(BEVFusion):
             threshold=0.5,
             feat_channels=512,
             tmp_channels=256,
+            seq_length=1,
             **kwargs,
     ) -> None:
         super(DDP, self).__init__(**kwargs)
@@ -88,7 +76,10 @@ class DDP(BEVFusion):
         self.time_difference = time_difference
         self.sample_range = sample_range
         self.num_classes = 6
-        self.embedding_table = nn.Embedding(self.num_classes + 1, tmp_channels)
+        self.tmp_channels = tmp_channels
+        self.feat_channels = feat_channels
+        self.seq_length = seq_length
+        self.embedding_table = nn.Embedding(self.num_classes + 1, self.tmp_channels)
         self.threshold = threshold
 
         print("sample range:", sample_range)
@@ -100,11 +91,11 @@ class DDP(BEVFusion):
             self.log_snr = alpha_cosine_log_snr
         else:
             raise ValueError(f'invalid noise schedule {noise_schedule}')
-
-        self.transform = ConvModule(tmp_channels + feat_channels, tmp_channels, 1, act_cfg=None)
+        self.transform = ConvModule(self.tmp_channels * self.seq_length + self.feat_channels, self.tmp_channels, 1,
+                                    act_cfg=None)
         # self.transform = ConvModule(512, tmp_channels, 1, act_cfg=None)
         # time embeddings
-        time_dim = tmp_channels * 4  # 1024
+        time_dim = self.tmp_channels * 4  # 1024
         sinu_pos_emb = LearnedSinusoidalPosEmb(learned_sinusoidal_dim)
         fourier_dim = learned_sinusoidal_dim + 1
 
@@ -135,11 +126,10 @@ class DDP(BEVFusion):
             times.append(time)
         return times
 
-    @force_fp32(apply_to=("img", "points"))
+    @force_fp32(apply_to=("img"))
     def forward_single(
             self,
             img,
-            points,
             camera2ego,
             lidar2ego,
             lidar2camera,
@@ -163,7 +153,6 @@ class DDP(BEVFusion):
             if sensor == "camera":
                 feature = self.extract_camera_features(
                     img,
-                    points,
                     camera2ego,
                     lidar2ego,
                     lidar2camera,
@@ -175,8 +164,8 @@ class DDP(BEVFusion):
                     metas,
                 )
             elif sensor == "lidar":
-                assert points is not None, "points must be provided for lidar encoder"
-                feature = self.extract_lidar_features(points)
+                # feature = self.extract_lidar_features(points)
+                raise ValueError("lidar sensor not supported")
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
             features.append(feature)
@@ -191,14 +180,11 @@ class DDP(BEVFusion):
             assert len(features) == 1, features
             x = features[0]
 
-        batch_size = x.shape[0]
-
-        x = self.decoder["backbone"](x)
+        batch_size = x.shape[0]  # (bs, 80,128,128)
+        x = self.decoder["backbone"](x)  # a list containing 3 features
         x = self.decoder["neck"](x)
-
         if not isinstance(x, list):
-            x = [x]
-
+            x = [x]  # x with shape (1,256,128,128)
         if self.training:
             outputs = {}
             for type, head in self.heads.items():
@@ -206,25 +192,34 @@ class DDP(BEVFusion):
                     pred_dict = head(x, metas)
                     losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict)
                 elif type == "map":
-                    batch, c, h, w, device, = *x[0].shape, x[0].device # 4,256,128,128
-                    multi_factor = (torch.arange(self.num_classes, device=device) + 1).view(1, self.num_classes, 1, 1) # (1,6,1,1)
-                    # shape of gt_mask_bev: (4, 6, 200,200)
-                    # shape of motion_instance: (4,5,200,200)  5 is the number of future frames -> problem: how to deal with instance id?
-                    # shape of motion_segmentation: (4,200,200), with only 0 and 1
-                    temp_tensor = motion_segmentation[0]
-                    unique_values = torch.unique(temp_tensor)
-                    unique_values_unsorted = torch.unique(unique_values, sorted=False)
-                    # 打印未排序的结果
+                    batch, c, h, w, device, = *x[0].shape, x[0].device  # 4,256,128,128
+                    multi_factor = (torch.arange(self.num_classes, device=device) + 1).view(1, self.num_classes, 1,
+                                                                                            1)  # (1,6,1,1)
+                    # shape of gt_mask_bev: (4, 6, 200,200) (single frame)
+                    # shape of gt_mask_bev : (4,5,6,200,200) (with future frame)
+                    _, seq_len, _, h_bev, w_bev = gt_masks_bev.shape
+                    multi_factor = multi_factor.unsqueeze(2)
+                    multi_factor = multi_factor.repeat(1, 1, seq_len, 1, 1)
+                    multi_factor = multi_factor.view(batch, self.num_classes * seq_len, 1, 1)
+                    gt_masks_bev = gt_masks_bev.view(batch, self.num_classes * seq_len, h_bev, w_bev)
                     gt_down = gt_masks_bev * multi_factor
-                    gt_down = resize(gt_down.float(), size=(h, w), mode="nearest").to(gt_masks_bev.dtype)
-                    # resize to (4,6,128,128*
-                    gt_down = self.embedding_table(gt_down).mean(dim=1).permute(0, 3, 1, 2) # class embedding
+                    gt_down = resize(gt_down.float(), size=(h, w), mode="nearest").to(
+                        gt_masks_bev.dtype)  # -> (bs,6*seq_len,128,128)
+                    # feed in to nn.embedding -> (bs,6*seq_len,128,128,256)
+                    # gt_down = self.embedding_table(gt_down).mean(dim=1).permute(0, 3, 1, 2)  # class embedding and averate
+                    gt_down = self.embedding_table(gt_down).view(batch, self.num_classes, seq_len, h, w,
+                                                                 self.tmp_channels)
+                    gt_down = gt_down.mean(dim=1).permute(0, 4, 1, 2, 3)
+                    # (bs,tmp_channels*seq_len,128,128)
                     # after embedding, its shape becomes (4,256,128,128)
                     gt_down = (torch.sigmoid(gt_down) * 2 - 1) * self.bit_scale
+                    gt_down = gt_down.reshape(batch, self.tmp_channels * seq_len, h, w).contiguous()
                     # sample timesteps
+
                     times = torch.zeros((batch,), device=device) \
                         .float().uniform_(self.sample_range[0], self.sample_range[1])
                     # random noise
+
                     noise = torch.randn_like(gt_down)
                     noise_level = self.log_snr(times)
                     padded_noise_level = self.right_pad_dims_to(img, noise_level, offset=1)
@@ -233,8 +228,12 @@ class DDP(BEVFusion):
 
                     # conditional input
                     feat = torch.cat([x[0], noised_gt], dim=1)
-                    feat = self.transform(feat) # encode the concat feature
+                    # shape of x is (bs,feat_channels,h,w)
+                    # shape of noised_gt is (bs,tmp_channels,h,w)
+                    feat = self.transform(feat)  # encode the concat feature
+                    # shape of feat after transform is (bs,256,128,128)
                     input_times = self.time_mlp(noise_level)
+                    # shape of input_times is (bs,1024)
                     # In the original paper, the author use x_t and t to predict the noise of X_0!! not the noise of x_t-1
                     # so here we also predict the GROUND_TRUTH --> we can then calculate the noise of X_0 (reparameterization trick)
                     # the reason why we do this is that we don't use MSEloss to predict the noise directly.
@@ -288,8 +287,10 @@ class DDP(BEVFusion):
 
         x = repeat(x[0], 'b c h w -> (r b) c h w', r=self.randsteps)
         outs = []
-        mask_t = torch.randn((self.randsteps, 256, h, w), device=device)
+        mask_t = torch.randn((self.randsteps, self.tmp_channels * self.seq_length, h, w), device=device)
         for idx, (times_now, times_next) in enumerate(time_pairs):
+            print(f"the shape of x is :{x.shape}")
+            print(f"the shape of mask_t is :{mask_t.shape}")
             feat = torch.cat([x, mask_t], dim=1)
             feat = self.transform(feat)
 
@@ -303,12 +304,26 @@ class DDP(BEVFusion):
 
             input_times = self.time_mlp(log_snr)
             mask_logit = head([feat], input_times, target=None)
+            bs,num_class,seq_len,h_bev,w_bev = mask_logit.shape
+            # (bs, len(self.classes), self.seq_length,bev_h, bev_w)
             mask_pred = (mask_logit > self.threshold)
+
             multi_factor = (torch.arange(self.num_classes, device=device) + 1).view(1, self.num_classes, 1, 1)
+            multi_factor = multi_factor.unsqueeze(2)
+            multi_factor = multi_factor.repeat(1, 1, self.seq_len, 1, 1)
+            multi_factor = multi_factor.view(b, self.num_classes * self.seq_len, 1, 1)
+
+            mask_pred = mask_pred.view(b, self.num_classes * self.seq_len, h_bev, w_bev)
             mask_pred = mask_pred * multi_factor
             mask_pred = resize(mask_pred.float(), size=(h, w), mode="nearest").to(torch.int64)
-            mask_pred = self.embedding_table(mask_pred).mean(dim=1).permute(0, 3, 1, 2)
+            mask_pred = self.embedding_table(mask_pred).view(b, self.num_classes, seq_len, h, w,
+                                                         self.tmp_channels)
+            mask_pred = mask_pred.mean(dim=1).permute(0, 4, 1, 2, 3)
+
+            #mask_pred = self.embedding_table(mask_pred).mean(dim=1).permute(0, 3, 1, 2)
             mask_pred = (torch.sigmoid(mask_pred) * 2 - 1) * self.bit_scale
+            mask_pred = mask_pred.reshape(b, self.tmp_channels * seq_len, h, w).contiguous()
+
             pred_noise = (mask_t - alpha * mask_pred) / sigma.clamp(min=1e-8)
             mask_t = mask_pred * alpha_next + pred_noise * sigma_next
             outs.append(mask_logit)
@@ -318,6 +333,7 @@ class DDP(BEVFusion):
 
     @torch.no_grad()
     def ddpm_sample(self, x, head):
+        raise NotImplementedError("DDPM sampling not implemented for multi frames")
         b, c, h, w, device = *x[0].shape, x[0].device
         time_pairs = self._get_sampling_timesteps(b, device=device)
 

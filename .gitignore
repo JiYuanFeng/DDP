@@ -16,3 +16,4 @@ bev/nuscenes
 *.so
 bev/figures/
 bev/runs/
+*.DS_Store

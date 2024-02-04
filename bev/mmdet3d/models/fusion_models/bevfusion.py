@@ -88,7 +88,6 @@ class BEVFusion(Base3DFusionModel):
     def extract_camera_features(
         self,
         x,
-        points,
         camera2ego,
         lidar2ego,
         lidar2camera,
@@ -113,7 +112,6 @@ class BEVFusion(Base3DFusionModel):
 
         x = self.encoders["camera"]["vtransform"](
             x,
-            points,
             camera2ego,
             lidar2ego,
             lidar2camera,
@@ -166,7 +164,6 @@ class BEVFusion(Base3DFusionModel):
     def forward(
         self,
         img,
-        points,
         camera2ego,
         lidar2ego,
         lidar2camera,
@@ -186,7 +183,6 @@ class BEVFusion(Base3DFusionModel):
         else:
             outputs = self.forward_single(
                 img,
-                points,
                 camera2ego,
                 lidar2ego,
                 lidar2camera,
@@ -207,7 +203,6 @@ class BEVFusion(Base3DFusionModel):
     def forward_single(
         self,
         img,
-        points,
         camera2ego,
         lidar2ego,
         lidar2camera,
@@ -229,7 +224,6 @@ class BEVFusion(Base3DFusionModel):
             if sensor == "camera":
                 feature = self.extract_camera_features(
                     img,
-                    points,
                     camera2ego,
                     lidar2ego,
                     lidar2camera,
@@ -241,7 +235,8 @@ class BEVFusion(Base3DFusionModel):
                     metas,
                 )
             elif sensor == "lidar":
-                feature = self.extract_lidar_features(points)
+                #feature = self.extract_lidar_features(points)
+                raise ValueError("lidar sensor not supported")
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
             features.append(feature)

@@ -114,6 +114,7 @@ class DeformableHeadWithTime(nn.Module):
                  grid_transform,
                  in_channels=256,
                  seg_conv_kernel=1,
+                 seq_length=1,
                  ):
         super().__init__()
 
@@ -128,15 +129,15 @@ class DeformableHeadWithTime(nn.Module):
         assert num_feats * 2 == self.embed_dims, 'embed_dims should' \
                                                  f' be exactly 2 times of num_feats. Found {self.embed_dims}' \
                                                  f' and {num_feats}.'
-
+        self.seq_length = seq_length
         self.classes = classes
         self.loss = loss
         self.transform = BEVGridTransform(**grid_transform)
 
         if seg_conv_kernel == 1:
-            self.conv_seg = nn.Conv2d(in_channels, len(classes), kernel_size=1)
+            self.conv_seg = nn.Conv2d(in_channels, len(classes)*self.seq_length, kernel_size=1)
         else:
-            self.conv_seg = nn.Conv2d(in_channels, len(classes), kernel_size=3, padding=1)
+            self.conv_seg = nn.Conv2d(in_channels, len(classes)*self.seq_length, kernel_size=3, padding=1)
 
         self.init_weights()
 
@@ -178,18 +179,18 @@ class DeformableHeadWithTime(nn.Module):
 
     def forward(self, inputs, times, target=None):
 
-        mlvl_feats = inputs[-self.num_feature_levels:]
+        mlvl_feats = inputs[-self.num_feature_levels:]  # the input is [feat], so this step is just for unpacking
+        # shape of mlvl_feats (bs,tmp_channels,h,w)
         # bev transform
-        mlvl_feats = [self.transform(feat) for feat in mlvl_feats]
-
+        mlvl_feats = [self.transform(feat) for feat in mlvl_feats] # from h,w -> bev_h, bev_w
         feat_flatten = []
         lvl_pos_embed_flatten = []
         spatial_shapes = []
         for lvl, feat in enumerate(mlvl_feats):
-            bs, c, h, w = feat.shape
-            spatial_shape = (h, w)
+            bs, c, bev_h, bev_w = feat.shape
+            spatial_shape = (bev_h, bev_w)
             spatial_shapes.append(spatial_shape)
-            mask = torch.zeros((bs, h, w), device=feat.device, requires_grad=False)
+            mask = torch.zeros((bs, bev_h, bev_w), device=feat.device, requires_grad=False)
             pos_embed = self.positional_encoding(mask)
             pos_embed = pos_embed.flatten(2).transpose(1, 2)
             feat = feat.flatten(2).transpose(1, 2)
@@ -217,19 +218,23 @@ class DeformableHeadWithTime(nn.Module):
             reference_points=reference_points,
             level_start_index=level_start_index)
         memory = memory.permute(1, 2, 0)
-        memory = memory.reshape(bs, c, h, w).contiguous()
-        x = self.conv_seg(memory)
-
+        memory = memory.reshape(bs, c, bev_h, bev_w).contiguous() # (bs, c, bev_h, bev+w)
+        x = self.conv_seg(memory) # (bs,num_classes*seq_length,bev_h,bev_w)
         if self.training:
             losses = {}
-            for index, name in enumerate(self.classes):
-                if self.loss == "xent":
-                    loss = sigmoid_xent_loss(x[:, index], target[:, index])
-                elif self.loss == "focal":
-                    loss = sigmoid_focal_loss(x[:, index], target[:, index])
-                else:
-                    raise ValueError(f"unsupported loss: {self.loss}")
-                losses[f"{name}/{self.loss}"] = loss
-            return losses
+            assert x.shape == target.shape
+            x = x.view(bs, len(self.classes), self.seq_length,bev_h, bev_w)
+            target = target.view(bs, len(self.classes), self.seq_length,bev_h, bev_w)
+            for timesteps in range(self.seq_length):
+                for index, name in enumerate(self.classes):
+                    if self.loss == "xent":
+                        loss = sigmoid_xent_loss(x[:, index,timesteps], target[:, index,timesteps])
+                    elif self.loss == "focal":
+                        loss = sigmoid_focal_loss(x[:, index,timesteps], target[:, index,timesteps])
+                    else:
+                        raise ValueError(f"unsupported loss: {self.loss}")
+                    losses[f"class: {name}/timesteps: {timesteps}/loss: {self.loss}"] = loss
+                return losses
         else:
+            x = x.view(bs, len(self.classes), self.seq_length,bev_h, bev_w)
             return torch.sigmoid(x)

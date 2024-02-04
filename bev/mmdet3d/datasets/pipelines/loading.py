@@ -57,7 +57,9 @@ class LoadMultiViewImageFromFiles:
         h, w = 0, 0
         for name in filename:
             images.append(Image.open(name))
-        
+        # # save image to jpg file
+        # for i, img in enumerate(images):
+        #     img.save(os.path.join("./figures",'test', f"camera_{i}.jpg"))
         #TODO: consider image padding in waymo
 
         results["filename"] = filename
@@ -263,63 +265,73 @@ class LoadBEVSegmentation:
             lidar2point = np.eye(4).astype(np.float32)
         else:
             lidar2point = data["lidar_aug_matrix"]
-        point2lidar = np.linalg.inv(lidar2point)
-        lidar2ego = data["lidar2ego"]
-        ego2global = data["ego2global"]
-        lidar2global = ego2global @ lidar2ego @ point2lidar
+        labels_list = []
+        for lidar2ego,ego2global in zip(data["lidar2ego_list"],data["ego2global_list"]):
+            point2lidar = np.linalg.inv(lidar2point)
+            # lidar2ego = data["lidar2ego"]
+            # ego2global = data["ego2global"]
+            lidar2global = ego2global @ lidar2ego @ point2lidar
 
-        map_pose = lidar2global[:2, 3] # x, y coordinates in global coordinate system
-        patch_box = (map_pose[0], map_pose[1], self.patch_size[0], self.patch_size[1])
+            map_pose = lidar2global[:2, 3] # x, y coordinates in global coordinate system
+            patch_box = (map_pose[0], map_pose[1], self.patch_size[0], self.patch_size[1])
 
-        rotation = lidar2global[:3, :3]
-        v = np.dot(rotation, np.array([1, 0, 0]))
-        yaw = np.arctan2(v[1], v[0])
-        patch_angle = yaw / np.pi * 180
+            rotation = lidar2global[:3, :3]
+            v = np.dot(rotation, np.array([1, 0, 0]))
+            yaw = np.arctan2(v[1], v[0])
+            patch_angle = yaw / np.pi * 180
 
-        mappings = {}
-        for name in self.classes:
-            if name == "drivable_area*":
-                mappings[name] = ["road_segment", "lane"]
-            elif name == "divider":
-                mappings[name] = ["road_divider", "lane_divider"]
-            else:
-                mappings[name] = [name]
+            mappings = {}
+            for name in self.classes:
+                if name == "drivable_area*":
+                    mappings[name] = ["road_segment", "lane"]
+                elif name == "divider":
+                    mappings[name] = ["road_divider", "lane_divider"]
+                else:
+                    mappings[name] = [name]
 
-        layer_names = []
-        for name in mappings:
-            layer_names.extend(mappings[name])
-        layer_names = list(set(layer_names))
+            layer_names = []
+            for name in mappings:
+                layer_names.extend(mappings[name])
+            layer_names = list(set(layer_names))
 
-        location = data["location"] # city name
-        masks = self.maps[location].get_map_mask(
-            patch_box=patch_box, # Patch box defined as [x_center, y_center, height, width]
-            patch_angle=patch_angle, # Patch orientation in degrees. North-facing corresponds to 0
-            layer_names=layer_names, # A list of layer names to be extracted, or None for all non-geometric layers
-            canvas_size=self.canvas_size, #Size of the output mask (h, w)
-        )
-        # mask with shape (c,h,w)
-        # masks = masks[:, ::-1, :].copy()
-        masks = masks.transpose(0, 2, 1) # (c, w, h) # why transpose?
-        masks = masks.astype(np.bool)
+            location = data["location"] # city name
+            masks = self.maps[location].get_map_mask(
+                patch_box=patch_box, # Patch box defined as [x_center, y_center, height, width]
+                patch_angle=patch_angle, # Patch orientation in degrees. North-facing corresponds to 0
+                layer_names=layer_names, # A list of layer names to be extracted, or None for all non-geometric layers
+                canvas_size=self.canvas_size, #Size of the output mask (h, w)
+            )
+            # mask with shape (c,h,w)
+            # masks = masks[:, ::-1, :].copy()
+            # the mask need to be rotated clock-wise 180 degree
+            masks = masks.transpose(0, 2, 1) # (c, w, h) # why transpose?
+            masks = masks.astype(np.bool)
 
-        num_classes = len(self.classes)
-        labels = np.zeros((num_classes, *self.canvas_size), dtype=np.long)
-        for k, name in enumerate(self.classes):
-            for layer_name in mappings[name]:
-                index = layer_names.index(layer_name)
-                labels[k, masks[index]] = 1
-
-        data["gt_masks_bev"] = labels # (c, w, h ) , c is the number of classes. 1 for match, 0 for not match
-        self.visualization(data)
+            num_classes = len(self.classes)
+            #print(f"num_classes: {num_classes}")
+            labels = np.zeros((num_classes, *self.canvas_size), dtype=np.long)
+            for k, name in enumerate(self.classes):
+                for layer_name in mappings[name]:
+                    index = layer_names.index(layer_name)
+                    labels[k, masks[index]] = 1
+            #print(f"labels shape: {labels.shape}")
+            labels_list.append(labels)
+        #data["gt_masks_bev"] = labels # (c, w, h ) , c is the number of classes. 1 for match, 0 for not match
+        data["gt_masks_bev"] = np.stack(labels_list, axis=0)
+        #print(f"gt_masks_bev shape: {data['gt_masks_bev'].shape}")
+        #self.visualization(data)
+        #assert False
         return data
     def visualization(self,results):
-        masks = results["gt_masks_bev"]
-        masks = masks.astype(np.bool)
-        visualize_map(
-            os.path.join("./figures",'test', f"map.png"),
-            masks,
-            classes=self.classes,
-        )
+        for i in range(results["gt_masks_bev"].shape[0]):
+            mask = results["gt_masks_bev"][i]
+            #print(mask.shape)
+            mask = mask.astype(np.bool)
+            visualize_map(
+                os.path.join("./figures",'test', f"map_{i}.png"),
+                mask,
+                classes=self.classes,
+            )
 
 @PIPELINES.register_module()
 class LoadPointsFromFile:
