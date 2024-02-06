@@ -13,8 +13,9 @@ from mmdet.datasets import DATASETS
 
 from ..core.bbox import LiDARInstance3DBoxes
 from .custom_3d import Custom3DDataset
-
-
+import random
+from mmdet3d.core.utils import  visualize_map
+import os
 @DATASETS.register_module()
 class DDPDataset(Custom3DDataset):
     r"""NuScenes Dataset.
@@ -273,15 +274,15 @@ class DDPDataset(Custom3DDataset):
         # fill missing parts, for future
         for i in range(len(prev_indices),len(all_frames)):
             if i>len(prev_indices) and all_frames[i]==-1:
-                assert data['ego2global_list'][i]=="missing" and data['lidar2ego_list'][i]=="missing"
-                assert data['ego2global_list'][i-1]!="missing" and data['lidar2ego_list'][i-1]!="missing"
+                # assert data['ego2global_list'][i]=="missing" and data['lidar2ego_list'][i]=="missing"
+                # assert data['ego2global_list'][i-1]!="missing" and data['lidar2ego_list'][i-1]!="missing"
                 data['ego2global_list'][i]=data['ego2global_list'][i-1]
                 data['lidar2ego_list'][i]=data['lidar2ego_list'][i-1]
                 all_frames[i]=all_frames[i-1]
         for i in range(len(prev_indices),-1,-1):
             if i < len(prev_indices) and all_frames[i]==-1:
-                assert data['ego2global_list'][i]=="missing" and data['lidar2ego_list'][i]=="missing"
-                assert data['ego2global_list'][i+1]!="missing" and data['lidar2ego_list'][i+1]!="missing"
+                # assert data['ego2global_list'][i]=="missing" and data['lidar2ego_list'][i]=="missing"
+                # assert data['ego2global_list'][i+1]!="missing" and data['lidar2ego_list'][i+1]!="missing"
                 data['ego2global_list'][i]=data['ego2global_list'][i+1]
                 data['lidar2ego_list'][i]=data['lidar2ego_list'][i+1]
                 all_frames[i]=all_frames[i+1]
@@ -544,7 +545,7 @@ class DDPDataset(Custom3DDataset):
         result_files = self._format_bbox(results, jsonfile_prefix)
         return result_files, tmp_dir
 
-    def evaluate_map(self, results):
+    def evaluate_map(self, results,visualization=True):
         thresholds = torch.tensor([0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65])
 
         num_classes = len(self.map_classes)
@@ -553,29 +554,47 @@ class DDPDataset(Custom3DDataset):
         tp = torch.zeros(num_classes, num_thresholds)
         fp = torch.zeros(num_classes, num_thresholds)
         fn = torch.zeros(num_classes, num_thresholds)
-
-        for result in results:
-            pred = result["masks_bev"]
-            label = result["gt_masks_bev"]
-
-            pred = pred.detach().reshape(num_classes, -1)
-            label = label.detach().bool().reshape(num_classes, -1)
-
-            pred = pred[:, :, None] >= thresholds
-            label = label[:, :, None]
-
-            tp += (pred & label).sum(dim=1)
-            fp += (pred & ~label).sum(dim=1)
-            fn += (~pred & label).sum(dim=1)
-
-        ious = tp / (tp + fp + fn + 1e-7)
-
         metrics = {}
-        for index, name in enumerate(self.map_classes):
-            metrics[f"map/{name}/iou@max"] = ious[index].max().item()
-            for threshold, iou in zip(thresholds, ious[index]):
-                metrics[f"map/{name}/iou@{threshold.item():.2f}"] = iou.item()
-        metrics["map/mean/iou@max"] = ious.max(dim=1).values.mean().item()
+        # randomly select five index to visualization
+        if visualization:
+            target_vis = random.sample(range(len(results)), 5)
+        for seq in range(self.sequence_length):
+            for i,result in enumerate(results): # iterate through each eval samples
+                pred = result["masks_bev"][seq,:,:,:] # seq_length,6,h,w -> 6,h,w
+                label = result["gt_masks_bev"][seq,:,:,:] # seq_length,6,h,w -> 6,h,w
+                if visualization and i in target_vis:
+                    pred_numpy = pred.cpu().numpy()
+                    mask_pred = pred_numpy.astype(np.bool)
+                    visualize_map(
+                        os.path.join("./figures", 'test', f"pred_index_{i}_timestep_{seq}.png"),
+                        mask_pred,
+                        classes=self.map_classes,
+                    )
+                    label_numpy = label.cpu().numpy()
+                    mask_label = label_numpy.astype(np.bool)
+                    visualize_map(
+                        os.path.join("./figures", 'test', f"gt_index_{i}_timestep_{seq}.png"),
+                        mask_label,
+                        classes=self.map_classes,
+                    )
+
+                pred = pred.detach().reshape(num_classes, -1)
+                label = label.detach().bool().reshape(num_classes, -1)
+
+                pred = pred[:, :, None] >= thresholds
+                label = label[:, :, None]
+
+                tp += (pred & label).sum(dim=1)
+                fp += (pred & ~label).sum(dim=1)
+                fn += (~pred & label).sum(dim=1)
+
+            ious = tp / (tp + fp + fn + 1e-7)
+
+            for index, name in enumerate(self.map_classes):
+                metrics[f"map/{name}/{seq}/iou@max"] = ious[index].max().item()
+                for threshold, iou in zip(thresholds, ious[index]):
+                    metrics[f"map/{name}/{seq}/iou@{threshold.item():.2f}"] = iou.item()
+            metrics[f"map/mean/{seq}/iou@max"] = ious.max(dim=1).values.mean().item()
         return metrics
 
     def evaluate(

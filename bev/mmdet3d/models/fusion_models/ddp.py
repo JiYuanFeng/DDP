@@ -193,23 +193,28 @@ class DDP(BEVFusion):
                     losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict)
                 elif type == "map":
                     batch, c, h, w, device, = *x[0].shape, x[0].device  # 4,256,128,128
+                    # shape of gt_mask_bev: (bs, 6, 200,200) (single frame)
+                    # shape of gt_mask_bev : (bs,seq_length,6,200,200) (with future frame)
+                    _, seq_len, _, h_bev, w_bev = gt_masks_bev.shape
                     multi_factor = (torch.arange(self.num_classes, device=device) + 1).view(1, self.num_classes, 1,
                                                                                             1)  # (1,6,1,1)
-                    # shape of gt_mask_bev: (4, 6, 200,200) (single frame)
-                    # shape of gt_mask_bev : (4,5,6,200,200) (with future frame)
-                    _, seq_len, _, h_bev, w_bev = gt_masks_bev.shape
-                    multi_factor = multi_factor.unsqueeze(2)
-                    multi_factor = multi_factor.repeat(1, 1, seq_len, 1, 1)
-                    multi_factor = multi_factor.view(batch, self.num_classes * seq_len, 1, 1)
-                    gt_masks_bev = gt_masks_bev.view(batch, self.num_classes * seq_len, h_bev, w_bev)
+                    multi_factor = multi_factor.unsqueeze(2)  # (1,6,1,1,1)
+                    multi_factor = multi_factor.repeat(batch, 1, seq_len, 1, 1)  # (bs,num_classes,seq_length,1,1)
+                    # switch axis
+                    multi_factor = multi_factor.permute(0, 2, 1, 3, 4)  # (bs,seq_length,num_classes,1,1)
+                    multi_factor = multi_factor.reshape(batch, seq_len * self.num_classes, 1, 1)
+                    gt_masks_bev = gt_masks_bev.view(batch, seq_len * self.num_classes, h_bev, w_bev)
                     gt_down = gt_masks_bev * multi_factor
                     gt_down = resize(gt_down.float(), size=(h, w), mode="nearest").to(
                         gt_masks_bev.dtype)  # -> (bs,6*seq_len,128,128)
                     # feed in to nn.embedding -> (bs,6*seq_len,128,128,256)
                     # gt_down = self.embedding_table(gt_down).mean(dim=1).permute(0, 3, 1, 2)  # class embedding and averate
-                    gt_down = self.embedding_table(gt_down).view(batch, self.num_classes, seq_len, h, w,
+                    # the shape of self.embedding_table(gt_down) is (bs,num_class*seq_length,h,w,tmp_channels)
+                    gt_down = self.embedding_table(gt_down).view(batch, seq_len, self.num_classes, h, w,
                                                                  self.tmp_channels)
-                    gt_down = gt_down.mean(dim=1).permute(0, 4, 1, 2, 3)
+                    # (bs,seq_len,num_class,128,128,tmp_channels)
+                    # the shape of gt_down.mean(dim=2) is (bs,seq_len,128,128,tmp_channels)
+                    gt_down = gt_down.mean(dim=2).permute(0, 4, 1, 2, 3)  # (bs,tmp_channels,seq_len,128,128)
                     # (bs,tmp_channels*seq_len,128,128)
                     # after embedding, its shape becomes (4,256,128,128)
                     gt_down = (torch.sigmoid(gt_down) * 2 - 1) * self.bit_scale
@@ -287,11 +292,10 @@ class DDP(BEVFusion):
 
         x = repeat(x[0], 'b c h w -> (r b) c h w', r=self.randsteps)
         outs = []
-        mask_t = torch.randn((self.randsteps, self.tmp_channels * self.seq_length, h, w), device=device)
+        mask_t = torch.randn((self.randsteps, self.seq_length*self.tmp_channels, h, w), device=device)
         for idx, (times_now, times_next) in enumerate(time_pairs):
-            print(f"the shape of x is :{x.shape}")
-            print(f"the shape of mask_t is :{mask_t.shape}")
             feat = torch.cat([x, mask_t], dim=1)
+            br = x.shape[0]
             feat = self.transform(feat)
 
             log_snr = self.log_snr(times_now)
@@ -304,25 +308,27 @@ class DDP(BEVFusion):
 
             input_times = self.time_mlp(log_snr)
             mask_logit = head([feat], input_times, target=None)
-            bs,num_class,seq_len,h_bev,w_bev = mask_logit.shape
+            bs, seq_len, num_classes, h_bev, w_bev = mask_logit.shape
+            assert bs == br
             # (bs, len(self.classes), self.seq_length,bev_h, bev_w)
             mask_pred = (mask_logit > self.threshold)
 
             multi_factor = (torch.arange(self.num_classes, device=device) + 1).view(1, self.num_classes, 1, 1)
             multi_factor = multi_factor.unsqueeze(2)
-            multi_factor = multi_factor.repeat(1, 1, self.seq_len, 1, 1)
-            multi_factor = multi_factor.view(b, self.num_classes * self.seq_len, 1, 1)
+            multi_factor = multi_factor.repeat(br, 1, self.seq_length, 1, 1)
+            multi_factor = multi_factor.permute(0, 2, 1, 3, 4)  # (bs,seq_length,num_classes,1,1)
+            multi_factor = multi_factor.reshape(br, self.seq_length * self.num_classes, 1, 1)
 
-            mask_pred = mask_pred.view(b, self.num_classes * self.seq_len, h_bev, w_bev)
+            mask_pred = mask_pred.view(br, self.seq_length * self.num_classes, h_bev, w_bev)
             mask_pred = mask_pred * multi_factor
             mask_pred = resize(mask_pred.float(), size=(h, w), mode="nearest").to(torch.int64)
-            mask_pred = self.embedding_table(mask_pred).view(b, self.num_classes, seq_len, h, w,
-                                                         self.tmp_channels)
-            mask_pred = mask_pred.mean(dim=1).permute(0, 4, 1, 2, 3)
+            mask_pred = self.embedding_table(mask_pred).view(br, seq_len, self.num_classes, h, w,
+                                                             self.tmp_channels)
+            mask_pred = mask_pred.mean(dim=2).permute(0, 4, 1, 2, 3)
 
-            #mask_pred = self.embedding_table(mask_pred).mean(dim=1).permute(0, 3, 1, 2)
+            # mask_pred = self.embedding_table(mask_pred).mean(dim=1).permute(0, 3, 1, 2)
             mask_pred = (torch.sigmoid(mask_pred) * 2 - 1) * self.bit_scale
-            mask_pred = mask_pred.reshape(b, self.tmp_channels * seq_len, h, w).contiguous()
+            mask_pred = mask_pred.reshape(br, seq_len * self.tmp_channels, h, w).contiguous()
 
             pred_noise = (mask_t - alpha * mask_pred) / sigma.clamp(min=1e-8)
             mask_t = mask_pred * alpha_next + pred_noise * sigma_next

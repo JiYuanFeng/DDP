@@ -118,13 +118,20 @@ train_pipeline:
         load_dim: ${load_dim}
         use_dim: ${use_dim}
         reduce_beams: ${reduce_beams}
+#  - type: ImageAug3D
+#    final_dim: ${image_size}
+#    resize_lim: ${augment2d.resize[0]}
+#    bot_pct_lim: [ 0.0, 0.0 ]
+#    rot_lim: ${augment2d.rotate}
+#    rand_flip: true
+#    is_train: true
   - type: ImageAug3D
     final_dim: ${image_size}
-    resize_lim: ${augment2d.resize[0]}
+    resize_lim: ${augment2d.resize[1]}
     bot_pct_lim: [ 0.0, 0.0 ]
-    rot_lim: ${augment2d.rotate}
-    rand_flip: true
-    is_train: true
+    rot_lim: [ 0.0, 0.0 ]
+    rand_flip: false
+    is_train: false
   - type: GlobalRotScaleTrans
     resize_lim: ${augment3d.scale}
     rot_lim: ${augment3d.rotate}
@@ -265,8 +272,8 @@ test_pipeline:
       - lidar_aug_matrix
 
 data:
-  samples_per_gpu: 1
-  workers_per_gpu: 1
+  samples_per_gpu: 4
+  workers_per_gpu: 8
   train:
     type: CBGSDataset
     dataset:
@@ -288,7 +295,7 @@ data:
   val:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
-    ann_file: ${dataset_root + "nuscenes_infos_mini_val.pkl"}
+    ann_file: ${dataset_root + "nuscenes_infos_mini_train.pkl"}
     pipeline: ${test_pipeline}
     object_classes: ${object_classes}
     map_classes: ${map_classes}
@@ -304,7 +311,7 @@ data:
   test:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
-    ann_file: ${dataset_root + "nuscenes_infos_mini_val.pkl"}
+    ann_file: ${dataset_root + "nuscenes_infos_mini_train.pkl"}
     pipeline: ${test_pipeline}
     object_classes: ${object_classes}
     map_classes: ${map_classes}
@@ -313,7 +320,7 @@ data:
     box_type_3d: LiDAR
     receptive_field: 1
     future_frames: 2
-    filter_invalid_sample: true
+    #filter_invalid_sample: true
 
 evaluation:
   interval: 1

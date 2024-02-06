@@ -17,3 +17,4 @@ bev/nuscenes
 bev/figures/
 bev/runs/
 *.DS_Store
+*.dist_test*

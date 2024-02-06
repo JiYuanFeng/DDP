@@ -1,12 +1,11 @@
+import warnings
 from typing import List, Tuple
 
-import torch.nn as nn
-from mmcv.runner import BaseModule, auto_fp16, force_fp32
-
 import torch
-import warnings
-from mmdet3d.models.builder import HEADS
+import torch.nn as nn
 import torch.nn.functional as F
+
+from mmdet3d.models.builder import HEADS
 
 try:
     from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttention
@@ -135,9 +134,9 @@ class DeformableHeadWithTime(nn.Module):
         self.transform = BEVGridTransform(**grid_transform)
 
         if seg_conv_kernel == 1:
-            self.conv_seg = nn.Conv2d(in_channels, len(classes)*self.seq_length, kernel_size=1)
+            self.conv_seg = nn.Conv2d(in_channels, len(classes) * self.seq_length, kernel_size=1)
         else:
-            self.conv_seg = nn.Conv2d(in_channels, len(classes)*self.seq_length, kernel_size=3, padding=1)
+            self.conv_seg = nn.Conv2d(in_channels, len(classes) * self.seq_length, kernel_size=3, padding=1)
 
         self.init_weights()
 
@@ -182,7 +181,7 @@ class DeformableHeadWithTime(nn.Module):
         mlvl_feats = inputs[-self.num_feature_levels:]  # the input is [feat], so this step is just for unpacking
         # shape of mlvl_feats (bs,tmp_channels,h,w)
         # bev transform
-        mlvl_feats = [self.transform(feat) for feat in mlvl_feats] # from h,w -> bev_h, bev_w
+        mlvl_feats = [self.transform(feat) for feat in mlvl_feats]  # from h,w -> bev_h, bev_w
         feat_flatten = []
         lvl_pos_embed_flatten = []
         spatial_shapes = []
@@ -218,23 +217,23 @@ class DeformableHeadWithTime(nn.Module):
             reference_points=reference_points,
             level_start_index=level_start_index)
         memory = memory.permute(1, 2, 0)
-        memory = memory.reshape(bs, c, bev_h, bev_w).contiguous() # (bs, c, bev_h, bev+w)
-        x = self.conv_seg(memory) # (bs,num_classes*seq_length,bev_h,bev_w)
+        memory = memory.reshape(bs, c, bev_h, bev_w).contiguous()  # (bs, c, bev_h, bev+w)
+        x = self.conv_seg(memory)  # (bs,seq_length*num_class,bev_h,bev_w)
         if self.training:
             losses = {}
             assert x.shape == target.shape
-            x = x.view(bs, len(self.classes), self.seq_length,bev_h, bev_w)
-            target = target.view(bs, len(self.classes), self.seq_length,bev_h, bev_w)
+            x = x.view(bs, self.seq_length, len(self.classes), bev_h, bev_w)
+            target = target.view(bs, self.seq_length, len(self.classes), bev_h, bev_w)
             for timesteps in range(self.seq_length):
                 for index, name in enumerate(self.classes):
                     if self.loss == "xent":
-                        loss = sigmoid_xent_loss(x[:, index,timesteps], target[:, index,timesteps])
+                        loss = sigmoid_xent_loss(x[:, timesteps, index], target[:, timesteps, index])
                     elif self.loss == "focal":
-                        loss = sigmoid_focal_loss(x[:, index,timesteps], target[:, index,timesteps])
+                        loss = sigmoid_focal_loss(x[:, timesteps, index], target[:, timesteps, index])
                     else:
                         raise ValueError(f"unsupported loss: {self.loss}")
                     losses[f"class: {name}/timesteps: {timesteps}/loss: {self.loss}"] = loss
-                return losses
+            return losses
         else:
-            x = x.view(bs, len(self.classes), self.seq_length,bev_h, bev_w)
+            x = x.view(bs, self.seq_length, len(self.classes), bev_h, bev_w)
             return torch.sigmoid(x)

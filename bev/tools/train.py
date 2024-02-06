@@ -18,8 +18,9 @@ from mmdet3d.utils import get_root_logger, convert_sync_batchnorm, recursive_eva
 
 
 def main():
+    print(f"initializing distributed environment for rank {dist.local_rank()}")
     dist.init()
-
+    print(f"initialized distributed environment for rank {dist.local_rank()}")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", metavar="FILE", help="config file")
     parser.add_argument("--run-dir", metavar="DIR", help="run directory")
