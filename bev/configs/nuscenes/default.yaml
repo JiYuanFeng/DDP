@@ -5,7 +5,8 @@ reduce_beams: 32
 load_dim: 5
 use_dim: 5
 load_augmented: null
-
+future_frames: 0
+receptive_field: 1
 point_cloud_range: [ -51.2, -51.2, -5.0, 51.2, 51.2, 3.0 ]
 voxel_size: [ 0.1, 0.1, 0.2 ]
 image_size: [ 256, 704 ]
@@ -85,7 +86,7 @@ train_pipeline:
     stop_epoch: ${gt_paste_stop_epoch} # set to -1, so this function won't be executed
     db_sampler:
       dataset_root: ${dataset_root}
-      info_path: ${dataset_root + "nuscenes_dbinfos_mini_train.pkl"}
+      info_path: ${dataset_root + "nuscenes_dbinfos_train.pkl"}
       rate: 1.0
       prepare:
         filter_by_difficulty: [ -1 ]
@@ -279,47 +280,50 @@ data:
     dataset:
       type: ${dataset_type}
       dataset_root: ${dataset_root}
-      ann_file: ${dataset_root + "nuscenes_infos_mini_train.pkl"}
+      ann_file: ${dataset_root + "nuscenes_infos_train.pkl"}
       pipeline: ${train_pipeline}
       object_classes: ${object_classes}
       map_classes: ${map_classes}
       modality: ${input_modality}
       test_mode: false
+      training_type: train
       #version: mini
       #motion_pred_grid_conf: ${motion_grid_conf}
       use_valid_flag: true
       box_type_3d: LiDAR
-      receptive_field: 1
-      future_frames: 2
+      receptive_field: ${receptive_field}
+      future_frames: ${future_frames}
       #filter_invalid_sample: true
   val:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
-    ann_file: ${dataset_root + "nuscenes_infos_mini_train.pkl"}
+    ann_file: ${dataset_root + "nuscenes_infos_val.pkl"}
     pipeline: ${test_pipeline}
     object_classes: ${object_classes}
     map_classes: ${map_classes}
     modality: ${input_modality}
     test_mode: false
+    training_type: val
     #version: mini
     #motion_pred_grid_conf: ${motion_grid_conf}
     box_type_3d: LiDAR
-    receptive_field: 1
-    future_frames: 2
+    receptive_field: ${receptive_field}
+    future_frames: ${future_frames}
     #filter_invalid_sample: true
 
   test:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
-    ann_file: ${dataset_root + "nuscenes_infos_mini_train.pkl"}
+    ann_file: ${dataset_root + "nuscenes_infos_val.pkl"}
     pipeline: ${test_pipeline}
     object_classes: ${object_classes}
     map_classes: ${map_classes}
     modality: ${input_modality}
     test_mode: true
     box_type_3d: LiDAR
-    receptive_field: 1
-    future_frames: 2
+    training_type: test
+    receptive_field: ${receptive_field}
+    future_frames: ${future_frames}
     #filter_invalid_sample: true
 
 evaluation:

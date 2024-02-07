@@ -9,7 +9,7 @@ model:
   sample_range: [0, 0.999]
   noise_schedule: 'cosine'
   diffusion: 'ddim'
-  seq_length: 3
+  seq_length: 1
   encoders:
     camera:
       backbone:
@@ -80,7 +80,7 @@ model:
       type: DeformableHeadWithTime
       in_channels: 256
       num_feature_levels: 1
-      seq_length: 3
+      seq_length: 1
       encoder:
         type: DetrTransformerEncoder
         num_layers: 5

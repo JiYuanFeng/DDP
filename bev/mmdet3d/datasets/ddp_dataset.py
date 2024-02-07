@@ -139,10 +139,13 @@ class DDPDataset(Custom3DDataset):
         eval_version="detection_cvpr_2019",
         use_valid_flag=False,
         receptive_field=1,
-        future_frames=3,
+        future_frames=0,
+        training_type="train",
     ) -> None:
         self.load_interval = load_interval
         self.use_valid_flag = use_valid_flag
+        self.training_type = training_type
+        print(f"training type: {self.training_type}")
         super().__init__(
             dataset_root=dataset_root,
             ann_file=ann_file,
@@ -172,6 +175,30 @@ class DDPDataset(Custom3DDataset):
         self.n_future = future_frames
         self.sequence_length = receptive_field + future_frames
         self.data_infos.sort(key=lambda x: (x['scene_token'], x['timestamp']))
+        print(f"we total have {self.__len__()} samples in the dataset.")
+    def __len__(self):
+        """Return the length of data infos.
+
+        Returns:
+            int: Length of data infos.
+        """
+        return len(self.data_infos)//10 if self.training_type!="train" and len(self.data_infos)>1000 else len(self.data_infos)
+    def __getitem__(self, idx):
+        """Get item from infos according to the given index.
+
+        Returns:
+            dict: Data dictionary of the corresponding index.
+        """
+        if self.training_type!="train" and len(self.data_infos)>1000:
+            idx = idx*10
+        if self.test_mode:
+            return self.prepare_test_data(idx)
+        while True:
+            data = self.prepare_train_data(idx)
+            if data is None:
+                idx = self._rand_another(idx)
+                continue
+            return data
     def get_temporal_indices(self, index):
         current_scene_token = self.data_infos[index]['scene_token']
 
@@ -486,6 +513,7 @@ class DDPDataset(Custom3DDataset):
             "v1.0-mini": "mini_val",
             "v1.0-trainval": "val",
         }
+        print(f"creating detectioneval.....")
         nusc_eval = DetectionEval(
             nusc,
             config=self.eval_detection_configs,
@@ -494,6 +522,7 @@ class DDPDataset(Custom3DDataset):
             output_dir=output_dir,
             verbose=False,
         )
+        print(f"finished!")
         nusc_eval.main(render_curves=False)
 
         # record metrics
@@ -545,7 +574,7 @@ class DDPDataset(Custom3DDataset):
         result_files = self._format_bbox(results, jsonfile_prefix)
         return result_files, tmp_dir
 
-    def evaluate_map(self, results,visualization=True):
+    def evaluate_map(self, results,visualization=False):
         thresholds = torch.tensor([0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65])
 
         num_classes = len(self.map_classes)
@@ -557,13 +586,14 @@ class DDPDataset(Custom3DDataset):
         metrics = {}
         # randomly select five index to visualization
         if visualization:
-            target_vis = random.sample(range(len(results)), 5)
+            target_vis = [50,100,150]
         for seq in range(self.sequence_length):
             for i,result in enumerate(results): # iterate through each eval samples
                 pred = result["masks_bev"][seq,:,:,:] # seq_length,6,h,w -> 6,h,w
                 label = result["gt_masks_bev"][seq,:,:,:] # seq_length,6,h,w -> 6,h,w
                 if visualization and i in target_vis:
-                    pred_numpy = pred.cpu().numpy()
+                    pred_numpy = pred >= 0.5
+                    pred_numpy = pred_numpy.cpu().numpy()
                     mask_pred = pred_numpy.astype(np.bool)
                     visualize_map(
                         os.path.join("./figures", 'test', f"pred_index_{i}_timestep_{seq}.png"),
@@ -622,20 +652,6 @@ class DDPDataset(Custom3DDataset):
 
         if "masks_bev" in results[0]:
             metrics.update(self.evaluate_map(results))
-
-        if "boxes_3d" in results[0]:
-            result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
-
-            if isinstance(result_files, dict):
-                for name in result_names:
-                    print("Evaluating bboxes of {}".format(name))
-                    ret_dict = self._evaluate_single(result_files[name])
-                metrics.update(ret_dict)
-            elif isinstance(result_files, str):
-                metrics.update(self._evaluate_single(result_files))
-
-            if tmp_dir is not None:
-                tmp_dir.cleanup()
 
         return metrics
 

@@ -1,4 +1,5 @@
 bev/visualization_imgs/
+bev/build*
 .idea/
 bev/mmdet3d/ops*
 bev/build/
