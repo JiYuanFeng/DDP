@@ -16,7 +16,7 @@ from mmdet.core import DistEvalHook, EvalHook
 from mmdet.datasets import build_dataloader, build_dataset, replace_ImageToTensor
 
 
-def train_model(
+def train_model_single_gpu(
         model,
         dataset,
         cfg,

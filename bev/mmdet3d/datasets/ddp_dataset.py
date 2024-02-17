@@ -13,10 +13,11 @@ from mmdet.datasets import DATASETS
 
 from ..core.bbox import LiDARInstance3DBoxes
 from .custom_3d import Custom3DDataset
-
-
+import random
+from mmdet3d.core.utils import  visualize_map
+import os
 @DATASETS.register_module()
-class NuScenesDataset(Custom3DDataset):
+class DDPDataset(Custom3DDataset):
     r"""NuScenes Dataset.
 
     This class serves as the API for experiments on the NuScenes Dataset.
@@ -137,9 +138,16 @@ class NuScenesDataset(Custom3DDataset):
         test_mode=False,
         eval_version="detection_cvpr_2019",
         use_valid_flag=False,
+        receptive_field=1,
+        future_frames=0,
+        training_type="train",
+        visualization=None,
+        camera_index=None,
     ) -> None:
         self.load_interval = load_interval
         self.use_valid_flag = use_valid_flag
+        self.training_type = training_type
+        print(f"training type: {self.training_type}")
         super().__init__(
             dataset_root=dataset_root,
             ann_file=ann_file,
@@ -165,7 +173,59 @@ class NuScenesDataset(Custom3DDataset):
                 use_map=False,
                 use_external=False,
             )
+        self.receptive_field = receptive_field
+        self.n_future = future_frames
+        self.sequence_length = receptive_field + future_frames
+        self.data_infos.sort(key=lambda x: (x['scene_token'], x['timestamp']))
+        self.visualization = visualization
+        self.camera_index = camera_index
+        print(f"we select images from these cameras: {self.camera_index}")
+        print(f"we total have {self.__len__()} samples in the dataset.")
+    def __len__(self):
+        """Return the length of data infos.
 
+        Returns:
+            int: Length of data infos.
+        """
+        return len(self.data_infos)//10 if self.training_type!="train" and len(self.data_infos)>1000 else len(self.data_infos)
+    def __getitem__(self, idx):
+        """Get item from infos according to the given index.
+
+        Returns:
+            dict: Data dictionary of the corresponding index.
+        """
+        if self.training_type!="train" and len(self.data_infos)>1000:
+            idx = idx*10
+        if self.test_mode:
+            return self.prepare_test_data(idx)
+        while True:
+            data = self.prepare_train_data(idx)
+            if data is None:
+                idx = self._rand_another(idx)
+                continue
+            return data
+    def get_temporal_indices(self, index):
+        current_scene_token = self.data_infos[index]['scene_token']
+
+        # generate the past
+        previous_indices = []
+        for t in range(- self.receptive_field + 1, 0):
+            index_t = index + t
+            if index_t >= 0 and self.data_infos[index_t]['scene_token'] == current_scene_token:
+                previous_indices.append(index_t)
+            else:
+                previous_indices.append(-1)  # for invalid indices
+
+        # generate the future
+        future_indices = []
+        for t in range(1, self.n_future + 1):
+            index_t = index + t
+            if index_t < len(self.data_infos) and self.data_infos[index_t]['scene_token'] == current_scene_token:
+                future_indices.append(index_t)
+            else:
+                future_indices.append(-1)
+
+        return previous_indices, future_indices
     def get_cat_ids(self, idx):
         """Get category distribution of single scene.
 
@@ -217,19 +277,47 @@ class NuScenesDataset(Custom3DDataset):
             timestamp=info["timestamp"],
             location=info["location"],
         )
+        # get the previous and future indices
+        prev_indices, future_indices = self.get_temporal_indices(index)
+        # ego motions are needed for all frames
+        all_frames = prev_indices + [index] + future_indices
+        data['ego2global_list']=[]
+        data['lidar2ego_list']=[]
+        for frame in all_frames:
+            if frame==-1:
+                data['ego2global_list'].append("missing")
+                data['lidar2ego_list'].append("missing")
+            else:
+                # ego to global transform
+                ego2global = np.eye(4).astype(np.float32)
+                ego2global[:3, :3] = Quaternion(self.data_infos[frame]["ego2global_rotation"]).rotation_matrix
+                ego2global[:3, 3] = self.data_infos[frame]["ego2global_translation"]
+                data["ego2global_list"].append(ego2global)
+                if frame==index:
+                    data['ego2global'] = ego2global
 
-        # ego to global transform
-        ego2global = np.eye(4).astype(np.float32)
-        ego2global[:3, :3] = Quaternion(info["ego2global_rotation"]).rotation_matrix
-        ego2global[:3, 3] = info["ego2global_translation"]
-        data["ego2global"] = ego2global
-
-        # lidar to ego transform
-        lidar2ego = np.eye(4).astype(np.float32)
-        lidar2ego[:3, :3] = Quaternion(info["lidar2ego_rotation"]).rotation_matrix
-        lidar2ego[:3, 3] = info["lidar2ego_translation"]
-        data["lidar2ego"] = lidar2ego
-
+                # lidar to ego transform
+                lidar2ego = np.eye(4).astype(np.float32)
+                lidar2ego[:3, :3] = Quaternion(self.data_infos[frame]["lidar2ego_rotation"]).rotation_matrix
+                lidar2ego[:3, 3] = self.data_infos[frame]["lidar2ego_translation"]
+                data["lidar2ego_list"].append(lidar2ego)
+                if frame==index:
+                    data['lidar2ego'] = lidar2ego
+        # fill missing parts, for future
+        for i in range(len(prev_indices),len(all_frames)):
+            if i>len(prev_indices) and all_frames[i]==-1:
+                # assert data['ego2global_list'][i]=="missing" and data['lidar2ego_list'][i]=="missing"
+                # assert data['ego2global_list'][i-1]!="missing" and data['lidar2ego_list'][i-1]!="missing"
+                data['ego2global_list'][i]=data['ego2global_list'][i-1]
+                data['lidar2ego_list'][i]=data['lidar2ego_list'][i-1]
+                all_frames[i]=all_frames[i-1]
+        for i in range(len(prev_indices),-1,-1):
+            if i < len(prev_indices) and all_frames[i]==-1:
+                # assert data['ego2global_list'][i]=="missing" and data['lidar2ego_list'][i]=="missing"
+                # assert data['ego2global_list'][i+1]!="missing" and data['lidar2ego_list'][i+1]!="missing"
+                data['ego2global_list'][i]=data['ego2global_list'][i+1]
+                data['lidar2ego_list'][i]=data['lidar2ego_list'][i+1]
+                all_frames[i]=all_frames[i+1]
         if self.modality["use_camera"]:
             data["image_paths"] = []
             data["lidar2camera"] = []
@@ -237,45 +325,46 @@ class NuScenesDataset(Custom3DDataset):
             data["camera2ego"] = []
             data["camera_intrinsics"] = []
             data["camera2lidar"] = []
+            #dict_keys(['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_FRONT_LEFT', 'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_BACK_RIGHT'])
+            for key, camera_info in info["cams"].items():
+                if key in self.camera_index:
+                    data["image_paths"].append(camera_info["data_path"])
 
-            for _, camera_info in info["cams"].items():
-                data["image_paths"].append(camera_info["data_path"])
+                    # lidar to camera transform
+                    lidar2camera_r = np.linalg.inv(camera_info["sensor2lidar_rotation"])
+                    lidar2camera_t = (
+                        camera_info["sensor2lidar_translation"] @ lidar2camera_r.T
+                    )
+                    lidar2camera_rt = np.eye(4).astype(np.float32)
+                    lidar2camera_rt[:3, :3] = lidar2camera_r.T
+                    lidar2camera_rt[3, :3] = -lidar2camera_t
+                    data["lidar2camera"].append(lidar2camera_rt.T)
 
-                # lidar to camera transform
-                lidar2camera_r = np.linalg.inv(camera_info["sensor2lidar_rotation"])
-                lidar2camera_t = (
-                    camera_info["sensor2lidar_translation"] @ lidar2camera_r.T
-                )
-                lidar2camera_rt = np.eye(4).astype(np.float32)
-                lidar2camera_rt[:3, :3] = lidar2camera_r.T
-                lidar2camera_rt[3, :3] = -lidar2camera_t
-                data["lidar2camera"].append(lidar2camera_rt.T)
+                    # camera intrinsics
+                    camera_intrinsics = np.eye(4).astype(np.float32)
+                    camera_intrinsics[:3, :3] = camera_info["cam_intrinsic"]
+                    data["camera_intrinsics"].append(camera_intrinsics)
 
-                # camera intrinsics
-                camera_intrinsics = np.eye(4).astype(np.float32)
-                camera_intrinsics[:3, :3] = camera_info["camera_intrinsics"]
-                data["camera_intrinsics"].append(camera_intrinsics)
+                    # lidar to image transform
+                    lidar2image = camera_intrinsics @ lidar2camera_rt.T
+                    data["lidar2image"].append(lidar2image)
 
-                # lidar to image transform
-                lidar2image = camera_intrinsics @ lidar2camera_rt.T
-                data["lidar2image"].append(lidar2image)
+                    # camera to ego transform
+                    camera2ego = np.eye(4).astype(np.float32)
+                    camera2ego[:3, :3] = Quaternion(
+                        camera_info["sensor2ego_rotation"]
+                    ).rotation_matrix
+                    camera2ego[:3, 3] = camera_info["sensor2ego_translation"]
+                    data["camera2ego"].append(camera2ego)
 
-                # camera to ego transform
-                camera2ego = np.eye(4).astype(np.float32)
-                camera2ego[:3, :3] = Quaternion(
-                    camera_info["sensor2ego_rotation"]
-                ).rotation_matrix
-                camera2ego[:3, 3] = camera_info["sensor2ego_translation"]
-                data["camera2ego"].append(camera2ego)
+                    # camera to lidar transform
+                    camera2lidar = np.eye(4).astype(np.float32)
+                    camera2lidar[:3, :3] = camera_info["sensor2lidar_rotation"]
+                    camera2lidar[:3, 3] = camera_info["sensor2lidar_translation"]
+                    data["camera2lidar"].append(camera2lidar)
 
-                # camera to lidar transform
-                camera2lidar = np.eye(4).astype(np.float32)
-                camera2lidar[:3, :3] = camera_info["sensor2lidar_rotation"]
-                camera2lidar[:3, 3] = camera_info["sensor2lidar_translation"]
-                data["camera2lidar"].append(camera2lidar)
-
-        annos = self.get_ann_info(index)
-        data["ann_info"] = annos
+        #annos = self.get_ann_info(index)
+        #data["ann_info"] = annos
         return data
 
     def get_ann_info(self, index):
@@ -369,14 +458,14 @@ class NuScenesDataset(Custom3DDataset):
                     elif name in ["bicycle", "motorcycle"]:
                         attr = "cycle.with_rider"
                     else:
-                        attr = NuScenesDataset.DefaultAttribute[name]
+                        attr = DDPDataset.DefaultAttribute[name]
                 else:
                     if name in ["pedestrian"]:
                         attr = "pedestrian.standing"
                     elif name in ["bus"]:
                         attr = "vehicle.stopped"
                     else:
-                        attr = NuScenesDataset.DefaultAttribute[name]
+                        attr = DDPDataset.DefaultAttribute[name]
 
                 nusc_anno = dict(
                     sample_token=sample_token,
@@ -430,6 +519,7 @@ class NuScenesDataset(Custom3DDataset):
             "v1.0-mini": "mini_val",
             "v1.0-trainval": "val",
         }
+        print(f"creating detectioneval.....")
         nusc_eval = DetectionEval(
             nusc,
             config=self.eval_detection_configs,
@@ -438,6 +528,7 @@ class NuScenesDataset(Custom3DDataset):
             output_dir=output_dir,
             verbose=False,
         )
+        print(f"finished!")
         nusc_eval.main(render_curves=False)
 
         # record metrics
@@ -498,29 +589,50 @@ class NuScenesDataset(Custom3DDataset):
         tp = torch.zeros(num_classes, num_thresholds)
         fp = torch.zeros(num_classes, num_thresholds)
         fn = torch.zeros(num_classes, num_thresholds)
-
-        for result in results:
-            pred = result["masks_bev"]
-            label = result["gt_masks_bev"]
-
-            pred = pred.detach().reshape(num_classes, -1)
-            label = label.detach().bool().reshape(num_classes, -1)
-
-            pred = pred[:, :, None] >= thresholds
-            label = label[:, :, None]
-
-            tp += (pred & label).sum(dim=1)
-            fp += (pred & ~label).sum(dim=1)
-            fn += (~pred & label).sum(dim=1)
-
-        ious = tp / (tp + fp + fn + 1e-7)
-
         metrics = {}
-        for index, name in enumerate(self.map_classes):
-            metrics[f"map/{name}/iou@max"] = ious[index].max().item()
-            for threshold, iou in zip(thresholds, ious[index]):
-                metrics[f"map/{name}/iou@{threshold.item():.2f}"] = iou.item()
-        metrics["map/mean/iou@max"] = ious.max(dim=1).values.mean().item()
+        # randomly select five index to visualization
+        if self.visualization:
+            target_vis = [50,100,150]
+            print(f"saving images for {target_vis}.....")
+        for seq in range(self.sequence_length):
+            for i,result in enumerate(results): # iterate through each eval samples
+                pred = result["masks_bev"][seq,:,:,:] # seq_length,6,h,w -> 6,h,w
+                label = result["gt_masks_bev"][seq,:,:,:] # seq_length,6,h,w -> 6,h,w
+                if self.visualization and i in target_vis:
+                    pred_numpy = pred >= 0.5
+                    pred_numpy = pred_numpy.cpu().numpy()
+                    mask_pred = pred_numpy.astype(np.bool)
+                    os.makedirs(os.path.join("./figures", self.visualization), exist_ok=True)
+                    visualize_map(
+                        os.path.join("./figures", self.visualization, f"pred_index_{i}_timestep_{seq}.png"),
+                        mask_pred,
+                        classes=self.map_classes,
+                    )
+                    label_numpy = label.cpu().numpy()
+                    mask_label = label_numpy.astype(np.bool)
+                    visualize_map(
+                        os.path.join("./figures", self.visualization, f"gt_index_{i}_timestep_{seq}.png"),
+                        mask_label,
+                        classes=self.map_classes,
+                    )
+
+                pred = pred.detach().reshape(num_classes, -1)
+                label = label.detach().bool().reshape(num_classes, -1)
+
+                pred = pred[:, :, None] >= thresholds
+                label = label[:, :, None]
+
+                tp += (pred & label).sum(dim=1)
+                fp += (pred & ~label).sum(dim=1)
+                fn += (~pred & label).sum(dim=1)
+
+            ious = tp / (tp + fp + fn + 1e-7)
+
+            for index, name in enumerate(self.map_classes):
+                metrics[f"map/{name}/{seq}/iou@max"] = ious[index].max().item()
+                for threshold, iou in zip(thresholds, ious[index]):
+                    metrics[f"map/{name}/{seq}/iou@{threshold.item():.2f}"] = iou.item()
+            metrics[f"map/mean/{seq}/iou@max"] = ious.max(dim=1).values.mean().item()
         return metrics
 
     def evaluate(
@@ -548,20 +660,6 @@ class NuScenesDataset(Custom3DDataset):
 
         if "masks_bev" in results[0]:
             metrics.update(self.evaluate_map(results))
-
-        if "boxes_3d" in results[0]:
-            result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
-
-            if isinstance(result_files, dict):
-                for name in result_names:
-                    print("Evaluating bboxes of {}".format(name))
-                    ret_dict = self._evaluate_single(result_files[name])
-                metrics.update(ret_dict)
-            elif isinstance(result_files, str):
-                metrics.update(self._evaluate_single(result_files))
-
-            if tmp_dir is not None:
-                tmp_dir.cleanup()
 
         return metrics
 

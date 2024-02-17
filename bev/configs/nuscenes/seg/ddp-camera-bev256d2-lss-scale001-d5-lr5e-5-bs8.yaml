@@ -1,3 +1,61 @@
+data:
+  samples_per_gpu: 8
+  workers_per_gpu: 8
+  train:
+    type: CBGSDataset
+    dataset:
+      type: ${dataset_type}
+      dataset_root: ${dataset_root}
+      ann_file: ${dataset_root + "nuscenes_infos_train.pkl"}
+      pipeline: ${train_pipeline}
+      object_classes: ${object_classes}
+      map_classes: ${map_classes}
+      modality: ${input_modality}
+      test_mode: false
+      training_type: train
+      #version: mini
+      #motion_pred_grid_conf: ${motion_grid_conf}
+      use_valid_flag: true
+      box_type_3d: LiDAR
+      receptive_field: ${receptive_field}
+      future_frames: ${future_frames}
+      camera_index: ${camera_index}
+      #filter_invalid_sample: true
+  val:
+    type: ${dataset_type}
+    dataset_root: ${dataset_root}
+    ann_file: ${dataset_root + "nuscenes_infos_val.pkl"}
+    pipeline: ${test_pipeline}
+    object_classes: ${object_classes}
+    map_classes: ${map_classes}
+    modality: ${input_modality}
+    test_mode: false
+    training_type: val
+    #version: mini
+    #motion_pred_grid_conf: ${motion_grid_conf}
+    box_type_3d: LiDAR
+    receptive_field: ${receptive_field}
+    future_frames: ${future_frames}
+    camera_index: ${camera_index}
+    #visualization: 3-cam-backleft-backright
+    #filter_invalid_sample: true
+
+  test:
+    type: ${dataset_type}
+    dataset_root: ${dataset_root}
+    ann_file: ${dataset_root + "nuscenes_infos_val.pkl"}
+    pipeline: ${test_pipeline}
+    object_classes: ${object_classes}
+    map_classes: ${map_classes}
+    modality: ${input_modality}
+    test_mode: true
+    box_type_3d: LiDAR
+    training_type: test
+    receptive_field: ${receptive_field}
+    future_frames: ${future_frames}
+    camera_index: ${camera_index}
+    #visualization: 3-cam-backleft-backright
+    #filter_invalid_sample: true
 model:
   type: DDP
   feat_channels: 256

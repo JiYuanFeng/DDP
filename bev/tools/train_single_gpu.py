@@ -11,7 +11,7 @@ from torchpack import distributed as dist
 from torchpack.environ import auto_set_run_dir, set_run_dir
 from torchpack.utils.config import configs
 
-from mmdet3d.apis import train_model
+from mmdet3d.apis import train_model_single_gpu
 from mmdet3d.datasets import build_dataset
 from mmdet3d.models import build_model
 from mmdet3d.utils import get_root_logger, convert_sync_batchnorm, recursive_eval
@@ -29,7 +29,7 @@ def main():
     # dist.init()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("config", metavar="FILE", help="config file")
+    parser.add_argument("--config", metavar="FILE", help="config file")
     parser.add_argument("--run-dir", metavar="DIR", help="run directory")
     args, opts = parser.parse_known_args()
 
@@ -81,7 +81,7 @@ def main():
         model = convert_sync_batchnorm(model, exclude=cfg["sync_bn"]["exclude"])
 
     logger.info(f"Model:\n{model}")
-    train_model(
+    train_model_single_gpu(
         model,
         datasets,
         cfg,
