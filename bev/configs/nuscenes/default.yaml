@@ -50,6 +50,13 @@ map_classes:
   # - road_divider
   # - lane_divider
   - divider
+camera_index:
+  - CAM_FRONT
+#  - CAM_FRONT_RIGHT
+#  - CAM_FRONT_LEFT
+  - CAM_BACK
+#  - CAM_BACK_LEFT
+#  - CAM_BACK_RIGHT
 
 input_modality:
   use_lidar: false
@@ -293,6 +300,7 @@ data:
       box_type_3d: LiDAR
       receptive_field: ${receptive_field}
       future_frames: ${future_frames}
+      camera_index: ${camera_index}
       #filter_invalid_sample: true
   val:
     type: ${dataset_type}
@@ -309,6 +317,8 @@ data:
     box_type_3d: LiDAR
     receptive_field: ${receptive_field}
     future_frames: ${future_frames}
+    camera_index: ${camera_index}
+    #visualization: 3-cam-backleft-backright
     #filter_invalid_sample: true
 
   test:
@@ -324,6 +334,8 @@ data:
     training_type: test
     receptive_field: ${receptive_field}
     future_frames: ${future_frames}
+    camera_index: ${camera_index}
+    #visualization: 3-cam-backleft-backright
     #filter_invalid_sample: true
 
 evaluation:

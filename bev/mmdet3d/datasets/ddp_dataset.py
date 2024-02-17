@@ -141,6 +141,8 @@ class DDPDataset(Custom3DDataset):
         receptive_field=1,
         future_frames=0,
         training_type="train",
+        visualization=None,
+        camera_index=None,
     ) -> None:
         self.load_interval = load_interval
         self.use_valid_flag = use_valid_flag
@@ -175,6 +177,9 @@ class DDPDataset(Custom3DDataset):
         self.n_future = future_frames
         self.sequence_length = receptive_field + future_frames
         self.data_infos.sort(key=lambda x: (x['scene_token'], x['timestamp']))
+        self.visualization = visualization
+        self.camera_index = camera_index
+        print(f"we select images from these cameras: {self.camera_index}")
         print(f"we total have {self.__len__()} samples in the dataset.")
     def __len__(self):
         """Return the length of data infos.
@@ -320,42 +325,43 @@ class DDPDataset(Custom3DDataset):
             data["camera2ego"] = []
             data["camera_intrinsics"] = []
             data["camera2lidar"] = []
+            #dict_keys(['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_FRONT_LEFT', 'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_BACK_RIGHT'])
+            for key, camera_info in info["cams"].items():
+                if key in self.camera_index:
+                    data["image_paths"].append(camera_info["data_path"])
 
-            for _, camera_info in info["cams"].items():
-                data["image_paths"].append(camera_info["data_path"])
+                    # lidar to camera transform
+                    lidar2camera_r = np.linalg.inv(camera_info["sensor2lidar_rotation"])
+                    lidar2camera_t = (
+                        camera_info["sensor2lidar_translation"] @ lidar2camera_r.T
+                    )
+                    lidar2camera_rt = np.eye(4).astype(np.float32)
+                    lidar2camera_rt[:3, :3] = lidar2camera_r.T
+                    lidar2camera_rt[3, :3] = -lidar2camera_t
+                    data["lidar2camera"].append(lidar2camera_rt.T)
 
-                # lidar to camera transform
-                lidar2camera_r = np.linalg.inv(camera_info["sensor2lidar_rotation"])
-                lidar2camera_t = (
-                    camera_info["sensor2lidar_translation"] @ lidar2camera_r.T
-                )
-                lidar2camera_rt = np.eye(4).astype(np.float32)
-                lidar2camera_rt[:3, :3] = lidar2camera_r.T
-                lidar2camera_rt[3, :3] = -lidar2camera_t
-                data["lidar2camera"].append(lidar2camera_rt.T)
+                    # camera intrinsics
+                    camera_intrinsics = np.eye(4).astype(np.float32)
+                    camera_intrinsics[:3, :3] = camera_info["cam_intrinsic"]
+                    data["camera_intrinsics"].append(camera_intrinsics)
 
-                # camera intrinsics
-                camera_intrinsics = np.eye(4).astype(np.float32)
-                camera_intrinsics[:3, :3] = camera_info["cam_intrinsic"]
-                data["camera_intrinsics"].append(camera_intrinsics)
+                    # lidar to image transform
+                    lidar2image = camera_intrinsics @ lidar2camera_rt.T
+                    data["lidar2image"].append(lidar2image)
 
-                # lidar to image transform
-                lidar2image = camera_intrinsics @ lidar2camera_rt.T
-                data["lidar2image"].append(lidar2image)
+                    # camera to ego transform
+                    camera2ego = np.eye(4).astype(np.float32)
+                    camera2ego[:3, :3] = Quaternion(
+                        camera_info["sensor2ego_rotation"]
+                    ).rotation_matrix
+                    camera2ego[:3, 3] = camera_info["sensor2ego_translation"]
+                    data["camera2ego"].append(camera2ego)
 
-                # camera to ego transform
-                camera2ego = np.eye(4).astype(np.float32)
-                camera2ego[:3, :3] = Quaternion(
-                    camera_info["sensor2ego_rotation"]
-                ).rotation_matrix
-                camera2ego[:3, 3] = camera_info["sensor2ego_translation"]
-                data["camera2ego"].append(camera2ego)
-
-                # camera to lidar transform
-                camera2lidar = np.eye(4).astype(np.float32)
-                camera2lidar[:3, :3] = camera_info["sensor2lidar_rotation"]
-                camera2lidar[:3, 3] = camera_info["sensor2lidar_translation"]
-                data["camera2lidar"].append(camera2lidar)
+                    # camera to lidar transform
+                    camera2lidar = np.eye(4).astype(np.float32)
+                    camera2lidar[:3, :3] = camera_info["sensor2lidar_rotation"]
+                    camera2lidar[:3, 3] = camera_info["sensor2lidar_translation"]
+                    data["camera2lidar"].append(camera2lidar)
 
         #annos = self.get_ann_info(index)
         #data["ann_info"] = annos
@@ -574,7 +580,7 @@ class DDPDataset(Custom3DDataset):
         result_files = self._format_bbox(results, jsonfile_prefix)
         return result_files, tmp_dir
 
-    def evaluate_map(self, results,visualization=False):
+    def evaluate_map(self, results):
         thresholds = torch.tensor([0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65])
 
         num_classes = len(self.map_classes)
@@ -585,25 +591,27 @@ class DDPDataset(Custom3DDataset):
         fn = torch.zeros(num_classes, num_thresholds)
         metrics = {}
         # randomly select five index to visualization
-        if visualization:
+        if self.visualization:
             target_vis = [50,100,150]
+            print(f"saving images for {target_vis}.....")
         for seq in range(self.sequence_length):
             for i,result in enumerate(results): # iterate through each eval samples
                 pred = result["masks_bev"][seq,:,:,:] # seq_length,6,h,w -> 6,h,w
                 label = result["gt_masks_bev"][seq,:,:,:] # seq_length,6,h,w -> 6,h,w
-                if visualization and i in target_vis:
+                if self.visualization and i in target_vis:
                     pred_numpy = pred >= 0.5
                     pred_numpy = pred_numpy.cpu().numpy()
                     mask_pred = pred_numpy.astype(np.bool)
+                    os.makedirs(os.path.join("./figures", self.visualization), exist_ok=True)
                     visualize_map(
-                        os.path.join("./figures", 'test', f"pred_index_{i}_timestep_{seq}.png"),
+                        os.path.join("./figures", self.visualization, f"pred_index_{i}_timestep_{seq}.png"),
                         mask_pred,
                         classes=self.map_classes,
                     )
                     label_numpy = label.cpu().numpy()
                     mask_label = label_numpy.astype(np.bool)
                     visualize_map(
-                        os.path.join("./figures", 'test', f"gt_index_{i}_timestep_{seq}.png"),
+                        os.path.join("./figures", self.visualization, f"gt_index_{i}_timestep_{seq}.png"),
                         mask_label,
                         classes=self.map_classes,
                     )
