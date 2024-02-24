@@ -25,8 +25,8 @@ import time
 # os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 def parse_args():
     parser = argparse.ArgumentParser(description="MMDet test (and eval) a model")
-    parser.add_argument("config", help="test config file path")
-    parser.add_argument("checkpoint", help="checkpoint file")
+    parser.add_argument("--config", help="test config file path")
+    parser.add_argument("--checkpoint", help="checkpoint file")
     parser.add_argument("--out", help="output result file in pickle format")
     parser.add_argument(
         "--fuse-conv-bn",
@@ -197,8 +197,8 @@ def main():
 
     if not distributed:
         model = MMDataParallel(model, device_ids=[0])
-        outputs, input_data = single_gpu_test(model, data_loader)
-        # outputs = single_gpu_test(model, data_loader)
+        #outputs, input_data = single_gpu_test(model, data_loader)
+        outputs = single_gpu_test(model, data_loader)
     else:
         model = MMDistributedDataParallel(
             model.cuda(),
@@ -229,12 +229,12 @@ def main():
                 eval_kwargs.pop(key, None)
             eval_kwargs.update(dict(metric=args.eval, **kwargs))
 
-            input_data_files, tmp_dir = dataset.format_results(input_data, **kwargs)
+            # input_data_files, tmp_dir = dataset.format_results(input_data, **kwargs)
             # eval_kwargs.updata(dict())
 
-            print(dataset.evaluate(outputs, input_data_files=input_data_files, **eval_kwargs))
+            print(dataset.evaluate(outputs,**eval_kwargs))
             # print(dataset.evaluate(outputs,**eval_kwargs))
-            tmp_dir.cleanup()
+            #tmp_dir.cleanup()
 
 
 if __name__ == "__main__":
